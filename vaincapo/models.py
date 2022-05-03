@@ -91,82 +91,6 @@ def linear_layer(
     return sequential_layer
 
 
-class OldEncoder(nn.Module):
-    """Class for encoder model."""
-
-    def __init__(self, latent_dim) -> None:
-        """Initialize the encoder model.
-
-        Args:
-            mobilenet: mobilenet module
-            latent_dim: dimension of latent space
-        """
-        super().__init__()
-
-        mobilenet_v2 = torch.hub.load(
-            "pytorch/vision:v0.10.0", "mobilenet_v2", pretrained=True
-        )
-        self.mobilenet_features = mobilenet_v2.features
-        # self.resnet = models.resnet34(pretrained=True)
-        # fe_out_planes = self.resnet.fc.in_features
-        # self.resnet.avgpool = nn.AdaptiveAvgPool2d(1)
-        # self.resnet.fc = nn.Linear(fe_out_planes, 2048)
-        self.fc = linear_layer(1280, 256, nn.ReLU())
-        self.mu = linear_layer(256, latent_dim)
-        self.logvar = linear_layer(256, latent_dim)
-
-    def forward(self, batch: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
-        """Forward pass of the encoder model."""
-        # batch = relu(self.resnet(batch))
-        batch = self.mobilenet_features(batch).reshape(len(batch), 1280)
-        batch = self.fc(batch)
-        mu = self.mu(batch)
-        logvar = self.logvar(batch)
-
-        return mu, logvar
-
-
-class OldDecoder(nn.Module):
-    """Class for decoder model."""
-
-    def __init__(self, latent_dim) -> None:
-        """Initiatize the decoder model.
-
-        Args:
-            latent_dim: dimension of latent space
-        """
-        super().__init__()
-        self.fc1 = linear_layer(latent_dim, 256, nn.ReLU())  # (256,)
-        self.fc2 = linear_layer(256, 16 * 8 * 8, nn.ReLU())  # (16*8*8=1024,)
-        self.conv1 = conv_layer(16, 16, 3, 1, 1, nn.ReLU())  # (16, 8, 8)
-        self.conv2 = conv_layer(16, 32, 3, 1, 1, nn.ReLU())  # (16, 8, 8)
-        self.up1 = nn.Upsample(scale_factor=2, mode="bilinear")  # (32, 16, 16)
-        self.conv3 = conv_layer(32, 32, 3, 1, 1, nn.ReLU())  # (32, 16, 16)
-        self.conv4 = conv_layer(32, 64, 3, 1, 1, nn.ReLU())  # (64, 16, 16)
-        self.up2 = nn.Upsample(scale_factor=2, mode="bilinear")  # (64, 32, 32)
-        self.conv5 = conv_layer(64, 32, 3, 1, 1, nn.ReLU())  # (64, 32, 32)
-        self.conv6 = conv_layer(32, 16, 3, 1, 1, nn.ReLU())  # (32, 32, 32)
-        self.conv7 = conv_layer(16, 8, 3, 1, 1, nn.ReLU())  # (8, 32, 32)
-        self.conv8 = conv_layer(8, 3, 3, 1, 1, nn.Sigmoid())  # (3, 32, 32)
-
-    def forward(self, batch: torch.Tensor) -> torch.Tensor:
-        """Forward pass of the decoder model."""
-        batch = self.fc1(batch)
-        batch = self.fc2(batch).reshape(-1, 16, 8, 8)
-        batch = self.conv1(batch)
-        batch = self.conv2(batch)
-        batch = self.up1(batch)
-        batch = self.conv3(batch)
-        batch = self.conv4(batch)
-        batch = self.up2(batch)
-        batch = self.conv5(batch)
-        batch = self.conv6(batch)
-        batch = self.conv7(batch)
-        batch = self.conv8(batch)
-
-        return batch
-
-
 class Encoder(nn.Module):
     def __init__(self, latent_dim):
         super().__init__()
@@ -245,7 +169,7 @@ class PoseMap(nn.Module):
             z: latent vector, shape (N, latent_dim)
 
         Returns:
-            tvec: translation vector, shape (N, 1)
+            tvec: translation vector, shape (N, 3)
             rvec: orientation continous 6D representation, shape (N, 6)
         """
         batch = self.fc1(z)
@@ -263,4 +187,4 @@ class PoseMap(nn.Module):
         tvec = self.fc_tvec(batch)
         rvec = self.fc_rvec(batch)
 
-        return torch.cat((tvec, rvec), dim=1)
+        return tvec, rvec
