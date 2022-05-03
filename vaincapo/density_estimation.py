@@ -58,20 +58,19 @@ class SO3Bingham:
     using a Bingham kernel with a triple of tunable smooting parameters.
     """
 
-    def __init__(self, samples: torch.Tensor, lambdas: torch.Tensor) -> None:
+    def __init__(self, samples: torch.Tensor, sigma: float) -> None:
         """Construct the approximation of the distribution.
 
         Args:
             samples:
                 samples drawn from the dsitribution to be modelled in quaternion
                 parameterization [w, x, y, z], shape (N, 4)
-            lambdas:
-                smoothing parameters, which must be non-positive and in descending
-                order. they are sorted in descnding order before use, shape (3,)
+            sigma:
+                smoothing parameter, that scales lambda values of the concentration
+                matrix. larger sigma results in peakier kernels
         """
-        assert torch.all(lambdas <= 0), "lambda values must be non-positive"
         self._samples = samples
-        self._lambdas = torch.sort(lambdas, descending=True)[0][None, :]
+        self._lambdas = sigma * torch.tensor([[-1.0, -1.0, -1.0]])
 
     def log_prob(self, value: torch.Tensor) -> torch.Tensor:
         """Evaluate log probability of the distribution.
