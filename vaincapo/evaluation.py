@@ -42,24 +42,11 @@ def evaluate_rots_likelihood(
     Returns:
         mean of log likelihoods of query points
     """
-    rotmat_queries = cont_to_rotmat(queries)
-    rotmat_samples = cont_to_rotmat(samples.reshape(-1, 6))
-
-    rotation_queries = Rotation.from_matrix(rotmat_queries.numpy())
-    rotation_samples = Rotation.from_matrix(rotmat_samples.numpy())
-
-    quat_queries = torch.tensor(rotation_queries.as_quat())
-    quat_samples = torch.tensor(rotation_samples.as_quat())
-
-    # change quaternion order from [x, y, z, w] to [w, x, y, z]
-    quat_queries = torch.roll(quat_queries, 1, dim=1)
-    quat_samples = torch.roll(quat_samples, 1, dim=1).reshape(*samples.shape[:2], 3, 3)
-
     return torch.mean(
         torch.tensor(
             [
-                get_rot_log_likelihood(quat_query, quat_sample, sigma).item()
-                for quat_query, quat_sample in zip(quat_queries, quat_samples)
+                get_rot_log_likelihood(query, sample, sigma).item()
+                for query, sample in zip(queries, samples)
             ]
         )
     )
