@@ -21,31 +21,6 @@ from torchvision.transforms import (
 )
 
 
-class AmbiguousToy(Dataset):
-    def __init__(self):
-        self._images = torch.zeros(10, 3, 64, 64)
-        self._poses = torch.tensor([[0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1]]).repeat(10, 1)
-        self._images[0:4, 0] = 1
-        self._poses[0, 0] = 0
-        self._poses[1, 0] = 1
-        self._poses[2, 0] = 2
-        self._poses[3, 0] = 3
-        self._images[4:7, 1] = 1
-        self._poses[4, 1] = 1
-        self._poses[5, 1] = 2
-        self._poses[6, 1] = 3
-        self._images[7:10, 2] = 1
-        self._poses[7, 2] = 1
-        self._poses[8, 2] = 2
-        self._poses[9, 2] = 3
-
-    def __len__(self):
-        return len(self._images)
-
-    def __getitem__(self, index):
-        return self._images[index], self._poses[index]
-
-
 class AmbiguousImages(Dataset):
     """Dataset class for ambiguous relocalisation dataset."""
 
@@ -57,7 +32,7 @@ class AmbiguousImages(Dataset):
         mean: Optional[List] = None,
         std: Optional[List] = None,
     ) -> None:
-        """Initialize the scene collection dataset class.
+        """construct the ambiguous scene images dataset class.
 
         Args:
             root: path of the root directory of the scene image collection
