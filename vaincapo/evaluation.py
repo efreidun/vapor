@@ -1,9 +1,99 @@
 """Module that contains evaluation tools."""
 
+from typing import Iterable, List
+
 import torch
 
-from vaincapo.utils import cont_to_rotmat
+from vaincapo.utils import chordal_to_geodesic
 from vaincapo.density_estimation import R3Gaussian, SO3Bingham
+
+
+def evaluate_recall(
+    tra_queries: torch.Tensor,
+    tra_samples: torch.Tensor,
+    rot_queries: torch.Tensor,
+    rot_samples: torch.Tensor,
+    threshold: Iterable[Iterable[float]],
+    min_samples: int,
+) -> List[float]:
+    """Compute the recall percentage of predicitions.
+
+    Args:
+        tra_queries: query translations, shape (N, 3)
+        tra_samples: translation samples drawn from distributions, shape (N, M, 3)
+        rot_queries: query rotations, shape (N, 3, 3)
+        rot_samples: rotation samples drawn from distributions, shape (N, M, 3, 3)
+        threshold:
+            translation & rotation thresholds (m, deg) defining true positives,
+            shape (K, (2,))
+        min_samples: minimum number of samples defining true positives
+
+    Returns:
+        recall percentage for each threshold, shape (K,)
+    """
+    tra_dists = torch.norm(tra_queries[:, None, :] - tra_samples, dim=2)
+    rot_dists = chordal_to_geodesic(
+        torch.norm(rot_queries[:, None, :, :] - rot_samples, dim=(2, 3)), deg=True
+    )
+    return [
+        torch.mean(
+            (
+                torch.sum((tra_dists <= tra_th) & (rot_dists <= rot_th), dim=1)
+                >= min_samples
+            ).float()
+        ).item()
+        for tra_th, rot_th in threshold
+    ]
+
+
+def evaluate_tras_recall(
+    queries: torch.Tensor,
+    samples: torch.Tensor,
+    threshold: Iterable[float],
+    min_samples: int,
+) -> List[float]:
+    """Compute the recall percentage of predicitions.
+
+    Args:
+        queries: query translations, shape (N, 3)
+        samples: samples drawn from distributions, shape (N, M, 3)
+        threshold: threshold (m) defining true positives, shape (K,)
+        min_samples: minimum number of samples defining true positives
+
+    Returns:
+        recall percentage for each threshold, shape (K,)
+    """
+    dists = torch.norm(queries[:, None, :] - samples, dim=2)
+    return [
+        torch.mean((torch.sum(dists <= th, dim=1) >= min_samples).float()).item()
+        for th in threshold
+    ]
+
+
+def evaluate_rots_recall(
+    queries: torch.Tensor,
+    samples: torch.Tensor,
+    threshold: Iterable[float],
+    min_samples: int,
+) -> List[float]:
+    """Compute the recall percentage of predicitions.
+
+    Args:
+        queries: query rotations, shape (N, 3, 3)
+        samples: samples drawn from distributions, shape (N, M, 3, 3)
+        threshold: threshold (deg) defining true positives, shape (K,)
+        min_samples: minimum number of samples defining true positives
+
+    Returns:
+        recall percentage for each threshold, shape (K,)
+    """
+    dists = chordal_to_geodesic(
+        torch.norm(queries[:, None, :, :] - samples, dim=(2, 3)), deg=True
+    )
+    return [
+        torch.mean((torch.sum(dists <= th, dim=1) >= min_samples).float()).item()
+        for th in threshold
+    ]
 
 
 def evaluate_tras_likelihood(

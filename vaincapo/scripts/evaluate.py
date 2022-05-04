@@ -6,7 +6,13 @@ import torch
 from torch.utils.data import DataLoader
 
 from vaincapo.utils import scale_trans, cont_to_rotmat, rotmat_to_quat
-from vaincapo.evaluation import evaluate_tras_likelihood, evaluate_rots_likelihood
+from vaincapo.evaluation import (
+    evaluate_tras_likelihood,
+    evaluate_rots_likelihood,
+    evaluate_tras_recall,
+    evaluate_rots_recall,
+    evaluate_recall,
+)
 from vaincapo.models import Encoder, PoseMap
 from vaincapo.data import AmbiguousImages
 
@@ -15,7 +21,6 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     latent_dim = 16
     image_size = 64
-    batch_size = 16
     num_latent_samples = 1000
     sequence = "blue_chairs"
     scene_path = Path.home() / "data" / "Ambiguous_ReLoc_Dataset" / sequence
@@ -89,8 +94,28 @@ def main():
             rotmat_to_quat(rot_hat.reshape(-1, 3, 3).numpy())
         ).reshape(*rot_hat.shape[:2], 4)
 
-        print("tra", evaluate_tras_likelihood(tra, tra_hat, 0.1))
-        print("rot", evaluate_rots_likelihood(rot_quat, rot_hat_quat, 40))
+        print("tra loglik", evaluate_tras_likelihood(tra, tra_hat, 0.1).item())
+        print("rot loglik", evaluate_rots_likelihood(rot_quat, rot_hat_quat, 40).item())
+        min_samples = 10
+        print(
+            "tra recall",
+            evaluate_tras_recall(tra, tra_hat, [0.1, 0.2, 0.3], min_samples),
+        )
+        print(
+            "rot recall",
+            evaluate_rots_recall(rot, rot_hat, [10.0, 15.0, 20.0], min_samples),
+        )
+        print(
+            "joint recall",
+            evaluate_recall(
+                tra,
+                tra_hat,
+                rot,
+                rot_hat,
+                [[0.1, 10.0], [0.2, 15.0], [0.3, 20.0]],
+                min_samples,
+            ),
+        )
 
 
 if __name__ == "__main__":
