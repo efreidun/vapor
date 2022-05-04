@@ -15,6 +15,7 @@ from vaincapo.evaluation import (
 )
 from vaincapo.models import Encoder, PoseMap
 from vaincapo.data import AmbiguousImages
+from vaincapo.plot_utils import plot_posterior
 
 
 def main():
@@ -51,7 +52,7 @@ def main():
     maxs = [0.195657, 0.464706, 0.058201]
     margins = [2, 2, 0.5]
 
-    for dataset in (train_set, test_set):
+    for dataset in (train_set,):
         num_val_images = len(dataset)
         val_data = DataLoader(
             dataset,
@@ -115,6 +116,16 @@ def main():
                 [[0.1, 10.0], [0.2, 15.0], [0.3, 20.0]],
                 min_samples,
             ),
+        )
+
+        q = 100
+        fig = plot_posterior(
+            tra_hat[q].numpy(),
+            rot_hat_quat[q].numpy(),
+            [m - marg for m, marg in zip(mins, margins)],
+            [m + marg for m, marg in zip(maxs, margins)],
+            tra[q].numpy(),
+            rot_quat[q].numpy(),
         )
 
 
