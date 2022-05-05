@@ -120,6 +120,8 @@ def main():
 
         q = 14
         fig = plot_posterior(
+            q,
+            image[q].transpose(0, 1).transpose(1, 2).cpu().numpy(),
             tra_hat[q].numpy(),
             rot_hat_quat[q].numpy(),
             [m - marg for m, marg in zip(mins, margins)],

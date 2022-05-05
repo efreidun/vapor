@@ -66,6 +66,8 @@ def render_3d(
 
 
 def plot_posterior(
+    query_id: int,
+    image: np.ndarray,
     tra_samples: np.ndarray,
     quat_samples: np.ndarray,
     tra_mins: Iterable[float],
@@ -79,6 +81,8 @@ def plot_posterior(
     """Plot many samples drawn from a posterior distribution.
 
     Args:
+        query_id: id of the query image
+        image: query image, shape (H, W, 3)
         tra_samples: translation samples , shape (N, 3)
         quat_samples: rotation samples in quaternion [w, x, y, z], shape (N, 4)
         tra_mins: minimum boundaries of translations, shape (3,)
@@ -101,6 +105,12 @@ def plot_posterior(
     )
 
     fig = plt.figure(figsize=(20, 10))
+
+    image_ax = fig.add_subplot(231)
+    image_ax.imshow(image)
+    image_ax.set_xticks([])
+    image_ax.set_yticks([])
+    image_ax.set_title(f"query image {query_id}")
 
     render_ax = fig.add_subplot(234)
     render = render_3d(
