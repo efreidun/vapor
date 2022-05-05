@@ -1,10 +1,53 @@
 """Module that contains utils functions."""
 
-from typing import Iterable
+from pathlib import Path
 
 import numpy as np
 from scipy.spatial.transform import Rotation
 import torch
+
+
+def read_scene_dims(scene_path: Path) -> np.ndarray:
+    """Read scene dimensions from text file.
+
+    Args:
+        scene_path: path to the sequence that contains scene.txt file
+
+    Returns:
+        2D array with rows containing minimum, maximum and margin values repectively,
+        and columns the x, y, z axes, shape (3, 3)
+    """
+    with open(scene_path / "scene.txt") as f:
+        content = f.readlines()
+    return torch.tensor(
+        [float(entry) for line in content[2:] for entry in line.strip().split()[1:]]
+    ).reshape(3, 3)
+
+
+def schedule_warmup(
+    epoch: int, max_value: float, start: int = 0, period: int = 0
+) -> float:
+    """Schedule a weight linear warmup from 0 to max_value.
+
+    If start and period are 0 (default) warmup is disabled and max_value is used.
+
+    Args:
+        epoch: current epoch
+        max_value: final value of the weight
+        start: epoch when warmup starts
+        period: warmup period until max_value is reached
+
+    Returns:
+        weight value for current epoch
+    """
+    if epoch < start:
+        return 0
+    elif epoch < start + period:
+        m = max_value / period
+        c = -m * start
+        return m * epoch + c
+    else:
+        return max_value
 
 
 def quat_to_hopf(quat: np.ndarray) -> np.ndarray:
@@ -48,28 +91,21 @@ def quat_to_hopf(quat: np.ndarray) -> np.ndarray:
 
 def scale_trans(
     tra: torch.Tensor,
-    mins: Iterable[float],
-    maxs: Iterable[float],
-    margins: Iterable[float],
+    scene_dims: np.ndarray,
 ) -> torch.Tensor:
     """scale canonical translations to metric space.
 
     Args:
         tra: translations confined in [0, 1], shape (N, 3)
-        mins: minimum valid value for translations, shape (3,)
-        maxs: maximum valid value for translations, shape (3,)
-        margins: margins for translations, shape (3,)
+        scene_dims: tensor containing scene minima, maxima and margins, shape (3, 3)
 
     Returns:
         metric translation vectors, shape (N, 3)
     """
-    return torch.hstack(
-        tuple(
-            tra[:, i : i + 1] * (maxs[i] - mins[i] + 2 * margins[i])
-            + (mins[i] - margins[i])
-            for i in range(3)
-        )
-    )
+    scene_dims = scene_dims.to(tra.device)
+    a = (scene_dims[1] - scene_dims[0] + 2 * scene_dims[2])[None, :]
+    b = (scene_dims[0] - scene_dims[2])[None, :]
+    return a * tra + b
 
 
 def cont_to_rotmat(rot: torch.Tensor) -> torch.Tensor:
