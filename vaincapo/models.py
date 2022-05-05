@@ -94,6 +94,7 @@ def linear_layer(
 class Encoder(nn.Module):
     def __init__(self, latent_dim):
         super().__init__()
+        self._latent_dim = latent_dim
         self.conv1 = conv_layer(3, 32, 4, 2, 1, nn.ReLU())  # (32, 32, 32)
         self.conv2 = conv_layer(32, 32, 4, 2, 1, nn.ReLU())  # (32, 16, 16)
         self.conv3 = conv_layer(32, 64, 4, 2, 1, nn.ReLU())  # (64, 8, 8)
@@ -115,10 +116,15 @@ class Encoder(nn.Module):
 
         return mu, logvar
 
+    def get_latent_dim(self) -> int:
+        """Retrieve latent dimension of the model."""
+        return self._latent_dim
+
 
 class Decoder(nn.Module):
     def __init__(self, latent_dim):
         super().__init__()
+        self._latent_dim = latent_dim
         self.linear = linear_layer(latent_dim, 256, nn.ReLU())  # (256,)
         self.tran_conv1 = tran_conv_layer(256, 64, 4, 1, 0, nn.ReLU())  # (64, 4, 4)
         self.tran_conv2 = tran_conv_layer(64, 64, 4, 2, 1, nn.ReLU())  # (64, 8, 8)
@@ -136,6 +142,10 @@ class Decoder(nn.Module):
 
         return batch
 
+    def get_latent_dim(self) -> int:
+        """Retrieve latent dimension of the model."""
+        return self._latent_dim
+
 
 class PoseMap(nn.Module):
     """Class for pose latent to SE(3) map."""
@@ -147,6 +157,7 @@ class PoseMap(nn.Module):
             latent_dim: number of latent dimensions
         """
         super().__init__()
+        self._latent_dim = latent_dim
         self.fc1 = linear_layer(latent_dim, 128, nn.ReLU())
         self.fc2 = linear_layer(128, 256, nn.ReLU())
         self.fc3 = linear_layer(256, 256, nn.ReLU())
@@ -188,3 +199,7 @@ class PoseMap(nn.Module):
         rvec = self.fc_rvec(batch)
 
         return tvec, rvec
+
+    def get_latent_dim(self) -> int:
+        """Retrieve latent dimension of the model."""
+        return self._latent_dim

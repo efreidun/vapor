@@ -4,6 +4,7 @@ from pathlib import Path
 
 import torch
 from torch.utils.data import DataLoader
+from tqdm import tqdm
 
 from vaincapo.utils import scale_trans, cont_to_rotmat, rotmat_to_quat
 from vaincapo.evaluation import (
@@ -16,6 +17,7 @@ from vaincapo.evaluation import (
 from vaincapo.models import Encoder, PoseMap
 from vaincapo.data import AmbiguousImages
 from vaincapo.plot_utils import plot_posterior
+from vaincapo.inference import infer
 
 
 def main():
@@ -52,7 +54,7 @@ def main():
     maxs = [0.195657, 0.464706, 0.058201]
     margins = [2, 2, 0.5]
 
-    for dataset in (test_set,):
+    for dataset in (train_set,):
         num_val_images = len(dataset)
         val_data = DataLoader(
             dataset,
@@ -67,24 +69,12 @@ def main():
                 image = batch[0].to(device)
                 pose = batch[1].to(device)
 
-                latent_mu, latent_logvar = encoder(image)
-                latent_std = torch.exp(0.5 * latent_logvar)
-                eps = torch.randn(
-                    (num_val_images, num_latent_samples, latent_dim), device=device
+                tra_hat, rot_hat = infer(
+                    encoder, posemap, image, num_latent_samples, mins, maxs, margins
                 )
-                latent_sample = eps * latent_std.unsqueeze(1) + latent_mu.unsqueeze(1)
-                tvec, rvec = posemap(latent_sample.flatten(end_dim=1))
+                tra_hat = tra_hat.cpu()
+                rot_hat = rot_hat.cpu()
 
-                tra_hat = (
-                    scale_trans(tvec, mins, maxs, margins)
-                    .reshape(num_val_images, num_latent_samples, 3)
-                    .cpu()
-                )
-                rot_hat = (
-                    cont_to_rotmat(rvec)
-                    .reshape(num_val_images, num_latent_samples, 3, 3)
-                    .cpu()
-                )
                 break
 
         tra = pose[:, :3].cpu()
@@ -118,20 +108,20 @@ def main():
             ),
         )
 
-        q = 14
-        fig = plot_posterior(
-            q,
-            image[q].transpose(0, 1).transpose(1, 2).cpu().numpy(),
-            tra_hat[q].numpy(),
-            rot_hat_quat[q].numpy(),
-            [m - marg for m, marg in zip(mins, margins)],
-            [m + marg for m, marg in zip(maxs, margins)],
-            13,
-            scene_path,
-            tra[q].numpy(),
-            rot_quat[q].numpy(),
-            Path.home() / "Desktop" / "hello.pdf"
-        )
+        for q in tqdm(range(len(dataset))):
+            fig = plot_posterior(
+                q,
+                image[q].transpose(0, 1).transpose(1, 2).cpu().numpy(),
+                tra_hat[q].numpy(),
+                rot_hat_quat[q].numpy(),
+                [m - marg for m, marg in zip(mins, margins)],
+                [m + marg for m, marg in zip(maxs, margins)],
+                13,
+                scene_path,
+                tra[q].numpy(),
+                rot_quat[q].numpy(),
+                Path.home() / "Desktop/plots/train_set" / f"{q}.png",
+            )
 
 
 if __name__ == "__main__":

@@ -63,7 +63,10 @@ def chordal_to_geodesic(dist: torch.Tensor, deg: bool = False) -> torch.Tensor:
 
 
 def scale_trans(
-    tra: torch.Tensor, mins: Iterable, maxs: Iterable, margins: Iterable
+    tra: torch.Tensor,
+    mins: Iterable[float],
+    maxs: Iterable[float],
+    margins: Iterable[float],
 ) -> torch.Tensor:
     """scale canonical translations to metric space.
 

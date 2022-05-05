@@ -204,5 +204,5 @@ def plot_posterior(
     if save is not None:
         fig.savefig(save)
 
-    plt.show()
+    # plt.show()
     return fig
