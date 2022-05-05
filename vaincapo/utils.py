@@ -46,22 +46,6 @@ def quat_to_hopf(quat: np.ndarray) -> np.ndarray:
     return np.vstack((phi, theta, psi)).T
 
 
-def chordal_to_geodesic(dist: torch.Tensor, deg: bool = False) -> torch.Tensor:
-    """Convert rotation chordal distance to geodesic distance.
-
-    Args:
-        dist: chordal distance, shape (N,)
-        deg: if True, geodesic distance is returned in degrees, otherwise radians
-
-    Returns:
-        geodesic distance, shape (N,)
-    """
-    geo_dist = 2 * torch.asin(dist / (8 ** 0.5))
-    if deg:
-        geo_dist = geo_dist / np.pi * 180
-    return geo_dist
-
-
 def scale_trans(
     tra: torch.Tensor,
     mins: Iterable[float],

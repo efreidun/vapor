@@ -4,8 +4,8 @@ from typing import Iterable, List
 
 import torch
 
-from vaincapo.utils import chordal_to_geodesic
 from vaincapo.density_estimation import R3Gaussian, SO3Bingham
+from vaincapo.losses import euclidean_dist, geodesic_dist
 
 
 def evaluate_recall(
@@ -31,10 +31,8 @@ def evaluate_recall(
     Returns:
         recall percentage for each threshold, shape (K,)
     """
-    tra_dists = torch.norm(tra_queries[:, None, :] - tra_samples, dim=2)
-    rot_dists = chordal_to_geodesic(
-        torch.norm(rot_queries[:, None, :, :] - rot_samples, dim=(2, 3)), deg=True
-    )
+    tra_dists = euclidean_dist(tra_samples, tra_queries)
+    rot_dists = geodesic_dist(rot_samples, rot_queries, deg=True)
     return [
         torch.mean(
             (
@@ -63,7 +61,7 @@ def evaluate_tras_recall(
     Returns:
         recall percentage for each threshold, shape (K,)
     """
-    dists = torch.norm(queries[:, None, :] - samples, dim=2)
+    dists = euclidean_dist(samples, queries)
     return [
         torch.mean((torch.sum(dists <= th, dim=1) >= min_samples).float()).item()
         for th in threshold
@@ -87,9 +85,7 @@ def evaluate_rots_recall(
     Returns:
         recall percentage for each threshold, shape (K,)
     """
-    dists = chordal_to_geodesic(
-        torch.norm(queries[:, None, :, :] - samples, dim=(2, 3)), deg=True
-    )
+    dists = geodesic_dist(samples, queries, deg=True)
     return [
         torch.mean((torch.sum(dists <= th, dim=1) >= min_samples).float()).item()
         for th in threshold
