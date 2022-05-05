@@ -52,7 +52,7 @@ def main():
     maxs = [0.195657, 0.464706, 0.058201]
     margins = [2, 2, 0.5]
 
-    for dataset in (train_set,):
+    for dataset in (test_set,):
         num_val_images = len(dataset)
         val_data = DataLoader(
             dataset,
@@ -97,14 +97,14 @@ def main():
 
         print("tra loglik", evaluate_tras_likelihood(tra, tra_hat, 0.1).item())
         print("rot loglik", evaluate_rots_likelihood(rot_quat, rot_hat_quat, 40).item())
-        min_samples = 10
+        min_samples = 20
         print(
             "tra recall",
-            evaluate_tras_recall(tra, tra_hat, [0.1, 0.2, 0.3], min_samples),
+            evaluate_tras_recall(tra, tra_hat, [0.1, 0.2, 0.3, 1.0], min_samples),
         )
         print(
             "rot recall",
-            evaluate_rots_recall(rot, rot_hat, [10.0, 15.0, 20.0], min_samples),
+            evaluate_rots_recall(rot, rot_hat, [10.0, 15.0, 20.0, 60.0], min_samples),
         )
         print(
             "joint recall",
@@ -113,19 +113,22 @@ def main():
                 tra_hat,
                 rot,
                 rot_hat,
-                [[0.1, 10.0], [0.2, 15.0], [0.3, 20.0]],
+                [[0.1, 10.0], [0.2, 15.0], [0.3, 20.0], [1.0, 60.0]],
                 min_samples,
             ),
         )
 
-        q = 100
+        q = 14
         fig = plot_posterior(
             tra_hat[q].numpy(),
             rot_hat_quat[q].numpy(),
             [m - marg for m, marg in zip(mins, margins)],
             [m + marg for m, marg in zip(maxs, margins)],
+            13,
+            scene_path,
             tra[q].numpy(),
             rot_quat[q].numpy(),
+            Path.home() / "Desktop" / "hello.pdf"
         )
 
 
