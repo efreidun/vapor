@@ -14,9 +14,14 @@ import wandb
 
 from vaincapo.data import AmbiguousImages
 from vaincapo.models import Encoder, PoseMap
-from vaincapo.utils import read_scene_dims, schedule_warmup
+from vaincapo.utils import read_scene_dims, schedule_warmup, rotmat_to_quat
 from vaincapo.inference import forward_pass
 from vaincapo.losses import chordal_to_geodesic
+from vaincapo.evaluation import (
+    evaluate_tras_likelihood,
+    evaluate_rots_likelihood,
+    evaluate_recall,
+)
 
 
 def parse_arguments() -> dict:
@@ -45,6 +50,9 @@ def parse_arguments() -> dict:
     parser.add_argument("--kld_warmup_start", type=int, default=0)
     parser.add_argument("--kld_warmup_period", type=int, default=0)
     parser.add_argument("--kld_max_weight", type=float, default=0)
+    parser.add_argument("--kde_gaussian_sigma", type=float, default=0.1)
+    parser.add_argument("--kde_bingham_lambda", type=float, default=40.0)
+    parser.add_argument("--recall_min_samples", type=int, default=20)
     parser.add_argument("--num_workers", type=int, default=4)
     args = parser.parse_args()
 
@@ -52,6 +60,7 @@ def parse_arguments() -> dict:
 
 
 def main(config: dict) -> None:
+    recall_thresholds = [[0.1, 10.0], [0.2, 15.0], [0.3, 20.0], [1.0, 60.0]]
     wandb.init(
         project="vaincapo_pipeline",
         entity="efreidun",
@@ -115,8 +124,18 @@ def main(config: dict) -> None:
         )
         encoder.train()
         posemap.train()
+
         for i, batch in enumerate(train_loader):
-            wta_loss, kld_loss, tra_loss, rot_loss = forward_pass(
+            (
+                tra,
+                rot,
+                tra_hat,
+                rot_hat,
+                wta_loss,
+                kld_loss,
+                tra_loss,
+                rot_loss,
+            ) = forward_pass(
                 encoder,
                 posemap,
                 batch,
@@ -128,56 +147,117 @@ def main(config: dict) -> None:
                 device,
             )
             loss = cfg.wta_weight * wta_loss + kld_weight * kld_loss
-
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
 
-            wandb.log(
-                {
-                    "epoch.step": epoch + i / len(train_loader),
-                    "train_loss": loss.item(),
-                    "train_wta_loss": wta_loss.item(),
-                    "train_kld_loss": kld_loss.item(),
-                    "train_tra_loss": tra_loss.item(),
-                    "train_rot_loss": chordal_to_geodesic(rot_loss, deg=True).item(),
-                }
-            )
+            with torch.no_grad():
+                rot_quat = torch.tensor(rotmat_to_quat(rot.cpu().numpy()))
+                rot_quat_hat = torch.tensor(
+                    rotmat_to_quat(rot_hat.reshape(-1, 3, 3).cpu().numpy())
+                ).reshape(*rot_hat.shape[:2], 4)
+                tra_log_likelihood = evaluate_tras_likelihood(
+                    tra, tra_hat, cfg.kde_gaussian_sigma
+                )
+                rot_log_likelihood = evaluate_rots_likelihood(
+                    rot_quat, rot_quat_hat, cfg.kde_bingham_lambda
+                )
+                recalls = evaluate_recall(
+                    tra,
+                    tra_hat,
+                    rot,
+                    rot_hat,
+                    recall_thresholds,
+                    cfg.recall_min_samples,
+                )
+
+            wandb_log = {
+                "epoch.step": epoch + i / len(train_loader),
+                "train_loss": loss.item(),
+                "train_wta_loss": wta_loss.item(),
+                "train_kld_loss": kld_loss.item(),
+                "train_tra_loss": tra_loss.item(),
+                "train_rot_loss": chordal_to_geodesic(rot_loss, deg=True).item(),
+                "train_tra_log_likelihood": tra_log_likelihood.item(),
+                "train_rot_log_likelihood": rot_log_likelihood.item(),
+            }
+            for j, (tra_thr, rot_thr) in enumerate(recall_thresholds):
+                wandb_log[f"train_recall_{tra_thr}m_{rot_thr}deg"] = recalls[j]
+            wandb.log(wandb_log)
 
         encoder.eval()
         posemap.eval()
         with torch.no_grad():
-            losses = torch.vstack(
-                [
-                    torch.stack(
-                        forward_pass(
-                            encoder,
-                            posemap,
-                            batch,
-                            cfg.num_samples,
-                            cfg.num_winners,
-                            cfg.tra_weight,
-                            cfg.rot_weight,
-                            scene_dims,
-                            device,
-                        )
-                    )
-                    for batch in valid_loader
-                ]
-            )
-            wta_loss, kld_loss, tra_loss, rot_loss = torch.mean(losses, dim=0)
+            tras = []
+            rots = []
+            tra_hats = []
+            rot_hats = []
+            losses = []
+            for batch in valid_loader:
+                (
+                    tra,
+                    rot,
+                    tra_hat,
+                    rot_hat,
+                    wta_loss,
+                    kld_loss,
+                    tra_loss,
+                    rot_loss,
+                ) = forward_pass(
+                    encoder,
+                    posemap,
+                    batch,
+                    cfg.num_samples,
+                    cfg.num_winners,
+                    cfg.tra_weight,
+                    cfg.rot_weight,
+                    scene_dims,
+                    device,
+                )
+                tras.append(tra)
+                rots.append(rot)
+                tra_hats.append(tra_hat)
+                rot_hats.append(rot_hat)
+                losses.append(torch.stack([wta_loss, kld_loss, tra_loss, rot_loss]))
+
+            wta_loss, kld_loss, tra_loss, rot_loss = torch.mean(torch.vstack(losses), dim=0)
             loss = cfg.wta_weight * wta_loss + kld_weight * kld_loss
 
-            wandb.log(
-                {
-                    "epoch.step": epoch + 1,
-                    "valid_loss": loss.item(),
-                    "valid_wta_loss": wta_loss.item(),
-                    "valid_kld_loss": kld_loss.item(),
-                    "valid_tra_loss": tra_loss.item(),
-                    "valid_rot_loss": chordal_to_geodesic(rot_loss, deg=True).item(),
-                }
+            tra = torch.cat(tras)
+            tra_hat = torch.cat(tra_hats)
+            rot = torch.cat(rots)
+            rot_hat = torch.cat(rot_hats)
+            rot_quat = torch.tensor(rotmat_to_quat(rot.cpu().numpy()))
+            rot_quat_hat = torch.tensor(
+                rotmat_to_quat(rot_hat.reshape(-1, 3, 3).cpu().numpy())
+            ).reshape(*rot_hat.shape[:2], 4)
+            tra_log_likelihood = evaluate_tras_likelihood(
+                tra, tra_hat, cfg.kde_gaussian_sigma
             )
+            rot_log_likelihood = evaluate_rots_likelihood(
+                rot_quat, rot_quat_hat, cfg.kde_bingham_lambda
+            )
+            recalls = evaluate_recall(
+                tra,
+                tra_hat,
+                rot,
+                rot_hat,
+                recall_thresholds,
+                cfg.recall_min_samples,
+            )
+            wandb_log = {
+                "epoch.step": epoch + 1,
+                "valid_loss": loss.item(),
+                "valid_wta_loss": wta_loss.item(),
+                "valid_kld_loss": kld_loss.item(),
+                "valid_tra_loss": tra_loss.item(),
+                "valid_rot_loss": chordal_to_geodesic(rot_loss, deg=True).item(),
+                "valid_tra_log_likelihood": tra_log_likelihood.item(),
+                "valid_rot_log_likelihood": rot_log_likelihood.item(),
+            }
+            for j, (tra_thr, rot_thr) in enumerate(recall_thresholds):
+                wandb_log[f"valid_recall_{tra_thr}m_{rot_thr}deg"] = recalls[j]
+            wandb.log(wandb_log)
 
 
 if __name__ == "__main__":

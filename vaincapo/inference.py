@@ -40,6 +40,10 @@ def forward_pass(
         device: device on which forward pass is carried out
 
     Returns:
+        groundtruth translations, shape (N, 3)
+        groundtruth rotation matrices, shape (N, 3, 3)
+        sample translations, shape (N, num_samples, 3)
+        sample rotation matrices, shape (N, num_samples, 3, 3)
         mean winners-take-all loss
         mean KL divergence
         mean translation Euclidean distance
@@ -61,7 +65,7 @@ def forward_pass(
         tra_error, rot_error, tra_weight, rot_weight, num_winners
     )
 
-    return wta_loss, kld_loss, tra_loss, rot_loss
+    return tra, rot, tra_hat, rot_hat, wta_loss, kld_loss, tra_loss, rot_loss
 
 
 def infer(
