@@ -22,9 +22,12 @@ class R3Gaussian:
             sigma: standard deviation of Gaussian kernel along all directions
         """
         n = len(samples)
-        mix = D.Categorical(torch.ones(n))
+        mix = D.Categorical(torch.ones(n, device=samples.device))
         comp = D.MultivariateNormal(
-            samples, (sigma ** 2 * torch.eye(3)).unsqueeze(0).repeat(n, 1, 1)
+            samples,
+            (sigma ** 2 * torch.eye(3, device=samples.device))
+            .unsqueeze(0)
+            .repeat(n, 1, 1),
         )
         self._gmm = D.MixtureSameFamily(mix, comp)
 
@@ -70,7 +73,9 @@ class SO3Bingham:
                 matrix. larger sigma results in peakier kernels
         """
         self._samples = samples
-        self._lambdas = sigma * torch.tensor([[-1.0, -1.0, -1.0]])
+        self._lambdas = sigma * torch.tensor(
+            [[-1.0, -1.0, -1.0]], device=samples.device
+        )
 
     def log_prob(self, value: torch.Tensor) -> torch.Tensor:
         """Evaluate log probability of the distribution.
