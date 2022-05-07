@@ -94,7 +94,7 @@ def evaluate_rots_recall(
 
 def evaluate_tras_likelihood(
     queries: torch.Tensor, samples: torch.Tensor, sigma: float
-) -> float:
+) -> torch.Tensor:
     """Compute the log probability densities of query points based on dist samples.
 
     Args:
@@ -117,7 +117,7 @@ def evaluate_tras_likelihood(
 
 def evaluate_rots_likelihood(
     queries: torch.Tensor, samples: torch.Tensor, sigma: float
-) -> float:
+) -> torch.Tensor:
     """Compute the log probability densities of query points based on dist samples.
 
     Args:
@@ -140,7 +140,7 @@ def evaluate_rots_likelihood(
 
 def get_tra_log_likelihood(
     query: torch.Tensor, samples: torch.Tensor, sigma: float
-) -> float:
+) -> torch.Tensor:
     """Compute the log probability density of a query point based on dist samples.
 
     Args:
@@ -157,7 +157,7 @@ def get_tra_log_likelihood(
 
 def get_rot_log_likelihood(
     query: torch.Tensor, samples: torch.Tensor, sigma: float
-) -> float:
+) -> torch.Tensor:
     """Compute the log probability density of a query point based on dist samples.
 
     Args:
