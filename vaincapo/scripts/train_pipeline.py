@@ -47,7 +47,7 @@ def parse_arguments() -> dict:
     parser.add_argument("--tra_weight", type=float, default=10)
     parser.add_argument("--rot_weight", type=float, default=1)
     parser.add_argument("--wta_weight", type=float, default=1)
-    parser.add_argument("--kld_warmup_start", type=int, default=10)
+    parser.add_argument("--kld_warmup_start", type=int, default=50)
     parser.add_argument("--kld_warmup_period", type=int, default=50)
     parser.add_argument("--kld_max_weight", type=float, default=0.1)
     parser.add_argument("--kde_gaussian_sigma", type=float, default=0.1)
