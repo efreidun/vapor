@@ -61,20 +61,23 @@ def parse_arguments() -> dict:
 
 def main(config: dict) -> None:
     recall_thresholds = [[0.1, 10.0], [0.2, 15.0], [0.3, 20.0], [1.0, 60.0]]
+    base_path = Path.home() / "code" / "vaincapo"
     wandb.init(
         project="vaincapo_pipeline",
         entity="efreidun",
         config=config,
+        dir=str(base_path)
     )
     config["datetime"] = str(datetime.now())
     config["run_name"] = wandb.run.name
     config["num_winners"] = int(config["top_percent"] * config["num_samples"])
     cfg = SimpleNamespace(**config)
-    runs_path = Path.home() / "code" / "vaincapo" / "runs"
+    runs_path = base_path / "runs"
     run_path = runs_path / cfg.run_name
     run_path.mkdir()
-    with open(run_path / "config.yml", "w") as f:
+    with open(run_path / "config.yaml", "w") as f:
         yaml.dump(config, f)
+    wandb.save(str(run_path / "config.yaml"))
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     scene_path = Path.home() / "data" / "Ambiguous_ReLoc_Dataset" / cfg.sequence

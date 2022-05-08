@@ -131,3 +131,4 @@ dmypy.json
 *.swp
 *.pdf
 runs/
+wandb/
