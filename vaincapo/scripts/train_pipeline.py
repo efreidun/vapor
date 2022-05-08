@@ -47,9 +47,9 @@ def parse_arguments() -> dict:
     parser.add_argument("--tra_weight", type=float, default=1)
     parser.add_argument("--rot_weight", type=float, default=1)
     parser.add_argument("--wta_weight", type=float, default=1)
-    parser.add_argument("--kld_warmup_start", type=int, default=0)
-    parser.add_argument("--kld_warmup_period", type=int, default=0)
-    parser.add_argument("--kld_max_weight", type=float, default=0)
+    parser.add_argument("--kld_warmup_start", type=int, default=10)
+    parser.add_argument("--kld_warmup_period", type=int, default=50)
+    parser.add_argument("--kld_max_weight", type=float, default=0.1)
     parser.add_argument("--kde_gaussian_sigma", type=float, default=0.1)
     parser.add_argument("--kde_bingham_lambda", type=float, default=40.0)
     parser.add_argument("--recall_min_samples", type=int, default=20)
@@ -116,7 +116,7 @@ def main(config: dict) -> None:
     wandb.watch(encoder)
     wandb.watch(posemap)
 
-    optimizer = Adam(posemap.parameters(), lr=cfg.lr)
+    optimizer = Adam(list(encoder.parameters()) + list(posemap.parameters()), lr=cfg.lr)
 
     for epoch in tqdm(range(cfg.epochs)):
         kld_weight = schedule_warmup(
@@ -220,7 +220,9 @@ def main(config: dict) -> None:
                 rot_hats.append(rot_hat)
                 losses.append(torch.stack([wta_loss, kld_loss, tra_loss, rot_loss]))
 
-            wta_loss, kld_loss, tra_loss, rot_loss = torch.mean(torch.vstack(losses), dim=0)
+            wta_loss, kld_loss, tra_loss, rot_loss = torch.mean(
+                torch.vstack(losses), dim=0
+            )
             loss = cfg.wta_weight * wta_loss + kld_weight * kld_loss
 
             tra = torch.cat(tras)
