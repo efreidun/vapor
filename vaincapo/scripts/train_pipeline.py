@@ -44,7 +44,7 @@ def parse_arguments() -> dict:
     parser.add_argument("--num_samples", type=int, default=1000)
     parser.add_argument("--top_percent", type=float, default=0.2)
     parser.add_argument("--image_size", type=int, default=64)
-    parser.add_argument("--tra_weight", type=float, default=1)
+    parser.add_argument("--tra_weight", type=float, default=10)
     parser.add_argument("--rot_weight", type=float, default=1)
     parser.add_argument("--wta_weight", type=float, default=1)
     parser.add_argument("--kld_warmup_start", type=int, default=10)
@@ -260,6 +260,19 @@ def main(config: dict) -> None:
             for j, (tra_thr, rot_thr) in enumerate(recall_thresholds):
                 wandb_log[f"valid_recall_{tra_thr}m_{rot_thr}deg"] = recalls[j]
             wandb.log(wandb_log)
+
+        if (epoch + 1) % 50 == 0:
+            torch.save(
+                encoder.state_dict(),
+                run_path / f"encoder_{epoch + 1}.pth",
+            )
+            torch.save(
+                posemap.state_dict(),
+                run_path / f"posemap_{epoch + 1}.pth",
+            )
+
+    wandb.save(str(run_path / f"encoder_{cfg.epochs}.pth"))
+    wandb.save(str(run_path / f"posemap_{cfg.epochs}.pth"))
 
 
 if __name__ == "__main__":
