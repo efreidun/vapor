@@ -39,11 +39,11 @@ def parse_arguments() -> dict:
     parser.add_argument("--epochs", type=int, default=1000)
     parser.add_argument("--lr", type=float, default=1e-4)
     parser.add_argument("--batch_size", type=int, default=16)
+    parser.add_argument("--image_size", type=int, default=64)
     parser.add_argument("--augment", type=bool, default=True)
     parser.add_argument("--latent_dim", type=int, default=16)
     parser.add_argument("--num_samples", type=int, default=1000)
     parser.add_argument("--top_percent", type=float, default=0.2)
-    parser.add_argument("--image_size", type=int, default=64)
     parser.add_argument("--tra_weight", type=float, default=10)
     parser.add_argument("--rot_weight", type=float, default=1)
     parser.add_argument("--wta_weight", type=float, default=1)
@@ -121,6 +121,7 @@ def main(config: dict) -> None:
 
     optimizer = Adam(list(encoder.parameters()) + list(posemap.parameters()), lr=cfg.lr)
 
+    epochs_digits = len(str(cfg.epochs))
     for epoch in tqdm(range(cfg.epochs)):
         kld_weight = schedule_warmup(
             epoch, cfg.kld_max_weight, cfg.kld_warmup_start, cfg.kld_warmup_period
@@ -267,11 +268,11 @@ def main(config: dict) -> None:
         if (epoch + 1) % 50 == 0:
             torch.save(
                 encoder.state_dict(),
-                run_path / f"encoder_{epoch + 1}.pth",
+                run_path / f"encoder_{str(epoch + 1).zfill(epochs_digits)}.pth",
             )
             torch.save(
                 posemap.state_dict(),
-                run_path / f"posemap_{epoch + 1}.pth",
+                run_path / f"posemap_{str(epoch + 1).zfill(epochs_digits)}.pth",
             )
 
     wandb.save(str(run_path / f"encoder_{cfg.epochs}.pth"))

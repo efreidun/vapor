@@ -184,7 +184,7 @@ def main(config: dict) -> None:
 
     with open(run_path / "metrics.txt", "w") as f:
         f.write(
-            f"{cfg.run} epoch {encoder_path.stem.split('_')[1]}"
+            f"{cfg.run} epoch {int(encoder_path.stem.split('_')[1])}"
             + f" with {cfg.num_samples} samples\n"
         )
         for row in results_matrix:
