@@ -14,7 +14,12 @@ import wandb
 
 from vaincapo.data import AmbiguousImages
 from vaincapo.models import Encoder, PoseMap
-from vaincapo.utils import read_scene_dims, schedule_warmup, rotmat_to_quat
+from vaincapo.utils import (
+    read_scene_dims,
+    compute_scene_dims,
+    schedule_warmup,
+    rotmat_to_quat,
+)
 from vaincapo.inference import forward_pass
 from vaincapo.losses import chordal_to_geodesic
 from vaincapo.evaluation import (
@@ -66,7 +71,7 @@ def main(config: dict) -> None:
         project="vaincapo_pipeline",
         entity="efreidun",
         config=config,
-        dir=str(base_path)
+        dir=str(base_path),
     )
     config["datetime"] = str(datetime.now())
     config["run_name"] = wandb.run.name
@@ -81,7 +86,10 @@ def main(config: dict) -> None:
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     scene_path = Path.home() / "data" / "Ambiguous_ReLoc_Dataset" / cfg.sequence
-    scene_dims = read_scene_dims(scene_path)
+    try:
+        scene_dims = read_scene_dims(scene_path)
+    except FileNotFoundError:
+        scene_dims = compute_scene_dims(scene_path)
     train_set = AmbiguousImages(scene_path / "train/seq00", cfg.image_size, cfg.augment)
     valid_set = AmbiguousImages(scene_path / "test/seq01", cfg.image_size, cfg.augment)
 

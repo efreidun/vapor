@@ -13,7 +13,7 @@ import numpy as np
 from vaincapo.data import AmbiguousImages
 from vaincapo.models import Encoder, PoseMap
 from vaincapo.inference import forward_pass
-from vaincapo.utils import read_scene_dims, rotmat_to_quat
+from vaincapo.utils import read_scene_dims, compute_scene_dims, rotmat_to_quat
 from vaincapo.evaluation import (
     evaluate_tras_likelihood,
     evaluate_rots_likelihood,
@@ -56,7 +56,10 @@ def main(config: dict) -> None:
     torch.set_grad_enabled(False)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     scene_path = Path.home() / "data" / "Ambiguous_ReLoc_Dataset" / train_cfg.sequence
-    scene_dims = read_scene_dims(scene_path)
+    try:
+        scene_dims = read_scene_dims(scene_path)
+    except FileNotFoundError:
+        scene_dims = compute_scene_dims(scene_path)
     train_set = AmbiguousImages(
         scene_path / "train/seq00", train_cfg.image_size, train_cfg.augment
     )

@@ -1,10 +1,59 @@
 """Module that contains utils functions."""
 
+from typing import Tuple
 from pathlib import Path
 
 import numpy as np
 from scipy.spatial.transform import Rotation
 import torch
+
+
+def read_poses(poses_path: Path) -> Tuple[np.ndarray, np.ndarray]:
+    """Read poses of a sequence from text file.
+
+    Every row of the text file is one pose containing
+    sequence id, frame id, qw, qx, qy, qz, tx, ty, tz.
+
+    Args:
+        poses_path: path to the sequence poses text file
+
+    Returns:
+        image IDs, shape (N,)
+        image poses [qw, qx, qy, qz, tx, ty, tz], shape (N, 7)
+    """
+    with open(poses_path) as f:
+        content = f.readlines()
+    parsed_poses = np.array(
+        [[float(entry) for entry in line.strip().split(", ")] for line in content],
+        dtype=np.float32,
+    )
+    return parsed_poses[:, 1].astype(int), parsed_poses[:, 2:]
+
+
+def compute_scene_dims(scene_path: Path, margin_ratio: float) -> np.ndarray:
+    """Compute scene dimensions and write them onto text file.
+
+    Args:
+        scene_path: path to the sequence that contains scene.txt file
+        margin_ratio: ratio of dim width that margin is set to
+
+    Returns:
+        2D array with rows containing minimum, maximum and margin values repectively,
+        and columns the x, y, z axes, shape (3, 3)
+    """
+    _, train_poses = read_poses(scene_path / "train/seq00/poses_seq00.txt")
+    _, test_poses = read_poses(scene_path / "test/seq01/poses_seq01.txt")
+    positions = np.concatenate((train_poses, test_poses))[:, 4:]
+    mins = np.min(positions, axis=0)
+    maxs = np.max(positions, axis=0)
+    margins = margin_ratio * (maxs - mins)
+    with open(scene_path / "scene.txt", "w") as f:
+        f.write(scene_path.stem + "\n")
+        f.write("quantity x y z\n")
+        f.write(f"mins {mins[0]} {mins[1]} {mins[2]}\n")
+        f.write(f"maxs {maxs[0]} {maxs[1]} {maxs[2]}\n")
+        f.write(f"margins {margins[0]} {margins[1]} {margins[2]}\n")
+    return np.vstack((mins, maxs, margins))
 
 
 def read_scene_dims(scene_path: Path) -> np.ndarray:

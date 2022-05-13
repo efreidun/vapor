@@ -20,6 +20,8 @@ from torchvision.transforms import (
     Normalize,
 )
 
+from vaincapo.utils import read_poses
+
 
 class AmbiguousImages(Dataset):
     """Dataset class for ambiguous relocalisation dataset."""
@@ -44,13 +46,9 @@ class AmbiguousImages(Dataset):
         self._augment = augment
         self._root_dir = Path(root)
         self._images_dir = self._root_dir / "rgb_matched"
-        with open(self._root_dir / f"poses_{self._root_dir.name}.txt") as f:
-            content = f.readlines()
-        parsed_poses = [
-            [float(entry) for entry in line.strip().split(", ")] for line in content
-        ]
-        poses = np.array(parsed_poses, dtype=np.float32)[:, 2:]
-        self._im_ids = np.array(parsed_poses, dtype=int)[:, 1]
+        self._im_ids, poses = read_poses(
+            self._root_dir / f"poses_{self._root_dir.name}.txt"
+        )
         image_paths = sorted(glob(str(self._images_dir / "*.png")))
         assert len(poses) == len(image_paths)
 
@@ -81,6 +79,8 @@ class AmbiguousImages(Dataset):
         transforms = [ToTensor()]
         if self._augment:
             transforms.append(RandomCrop((int(0.9 * height), int(0.9 * width))))
+            # transforms.append(Resize(256))
+            # transforms.append(RandomCrop((image_size, image_size)))
         transforms.append(Resize((image_size, image_size)))
         if mean is not None and std is not None:
             transforms.append(Normalize(mean, std))
