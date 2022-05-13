@@ -30,7 +30,7 @@ def read_poses(poses_path: Path) -> Tuple[np.ndarray, np.ndarray]:
     return parsed_poses[:, 1].astype(int), parsed_poses[:, 2:]
 
 
-def compute_scene_dims(scene_path: Path, margin_ratio: float) -> np.ndarray:
+def compute_scene_dims(scene_path: Path, margin_ratio: float = 0.2) -> np.ndarray:
     """Compute scene dimensions and write them onto text file.
 
     Args:
@@ -53,7 +53,7 @@ def compute_scene_dims(scene_path: Path, margin_ratio: float) -> np.ndarray:
         f.write(f"mins {mins[0]} {mins[1]} {mins[2]}\n")
         f.write(f"maxs {maxs[0]} {maxs[1]} {maxs[2]}\n")
         f.write(f"margins {margins[0]} {margins[1]} {margins[2]}\n")
-    return np.vstack((mins, maxs, margins))
+    return torch.tensor(np.vstack((mins, maxs, margins)))
 
 
 def read_scene_dims(scene_path: Path) -> np.ndarray:
