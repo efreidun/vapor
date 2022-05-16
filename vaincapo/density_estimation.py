@@ -31,7 +31,7 @@ class R3Gaussian:
         )
         self._gmm = D.MixtureSameFamily(mix, comp)
 
-    def sample(self, sample_shape: Tuple = torch.Size()) -> torch.Tensor():
+    def sample(self, sample_shape: Tuple = torch.Size()) -> torch.Tensor:
         """Draw samples from the modelled distribution.
 
         Args:
