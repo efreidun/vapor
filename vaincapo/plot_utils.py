@@ -206,3 +206,46 @@ def plot_posterior(
 
     # plt.show()
     return fig
+
+
+def plot_rots_on_plane(
+    figure: plt.Figure,
+    position: int,
+    title: str,
+    quat_samples: np.ndarray,
+    quat_gt: Optional[np.ndarray] = None,
+) -> None:
+    """Plot rotation samples on a 2D plane.
+
+    Rotation samples are converted to Hopf coordinates, S^2 element of which is
+    projected onto a 2D plane using Mollweide projection, and the S^1 element marcated
+    by coloring the samples according to a color wheel.
+
+    Args:
+        figure: figure instance on which plot is made in-place
+        position: subplot position on the figure
+        title: title of the subplot
+        quat_samples: samples to be plotted in quaternions [w, x, y, z], shape (N, 4)
+        quat_gt: groundtruth quaternions [w, x, y, z] plotted as circles, shape (M, 4)
+    """
+    s1_cm = cmx.ScalarMappable(
+        norm=clrs.Normalize(vmin=0, vmax=2 * np.pi), cmap=plt.get_cmap("hsv")
+    )
+
+    rot_ax = figure.add_subplot(position, projection="mollweide")
+    rot_ax.grid(True)
+    rot_ax.set_title(title)
+    if quat_gt is not None:
+        hopf_gt = quat_to_hopf(quat_gt)
+        for hopf in hopf_gt:
+            rot_ax.add_patch(
+                Circle(
+                    xy=hopf[:2],
+                    radius=0.2,
+                    linewidth=2,
+                    facecolor="none",
+                    edgecolor=s1_cm.to_rgba(hopf[2]),
+                )
+            )
+    hopf_samples = quat_to_hopf(quat_samples)
+    rot_ax.scatter(*hopf_samples.T[:2], s=2, color=s1_cm.to_rgba(hopf_samples.T[2]))

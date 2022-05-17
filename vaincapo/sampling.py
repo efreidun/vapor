@@ -133,7 +133,7 @@ class BMM:
             num_candidates: number of candidates considered at every step
 
         Returns:
-            drawn samples
+            drawn quaternion samples [w, x, y, z], shape (num_samples, 4)
         """
         samples = torch.empty((0, 4), device=self._device)
         while len(samples) < num_samples:

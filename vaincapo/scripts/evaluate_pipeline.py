@@ -33,7 +33,7 @@ def parse_arguments() -> dict:
     parser.add_argument("--run", type=str)
     parser.add_argument("--epoch", type=int, default=None)
     parser.add_argument("--batch_size", type=int, default=None)
-    parser.add_argument("--num_samples", type=int, default=10000)
+    parser.add_argument("--num_samples", type=int, default=1000)
     parser.add_argument("--num_workers", type=int, default=4)
     args = parser.parse_args()
 
@@ -43,8 +43,8 @@ def parse_arguments() -> dict:
 def main(config: dict) -> None:
     recall_thresholds = [[0.1, 10.0], [0.2, 15.0], [0.3, 20.0], [1.0, 60.0]]
     kde_gaussian_sigmas = np.linspace(0.01, 0.50, num=100, endpoint=True)
-    kde_bingham_lambdas = np.linspace(200.0, 300.0, num=100, endpoint=True)
-    recall_min_samples = [1, 25, 50, 100, 150, 200, 300, 400, 500]
+    kde_bingham_lambdas = np.linspace(100.0, 300.0, num=100, endpoint=True)
+    recall_min_samples = [1, 5, 10, 15, 20, 25, 50, 75, 100, 200]
 
     cfg = SimpleNamespace(**config)
     base_path = Path.home() / "code" / "vaincapo"
