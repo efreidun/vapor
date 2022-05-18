@@ -46,7 +46,7 @@ class AmbiguousImages(Dataset):
         self._augment = augment
         self._root_dir = Path(root)
         self._images_dir = self._root_dir / "rgb_matched"
-        self._im_ids, self._trans, self._rotmats = read_poses(
+        _, self._im_ids, self._trans, self._rotmats = read_poses(
             self._root_dir / f"poses_{self._root_dir.name}.txt"
         )
         image_paths = sorted(glob(str(self._images_dir / "*.png")))

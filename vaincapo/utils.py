@@ -8,7 +8,9 @@ from scipy.spatial.transform import Rotation
 import torch
 
 
-def read_poses(poses_path: Path) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+def read_poses(
+    poses_path: Path,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Read poses of a sequence from text file.
 
     Every row of the text file is one pose containing
@@ -18,6 +20,7 @@ def read_poses(poses_path: Path) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         poses_path: path to the sequence poses text file
 
     Returns:
+        image sequence identifier, shape (N,)
         image IDs, shape (N,)
         image positions, shape (N, 3)
         image rotation matrices, shape (N, 3, 3)
@@ -28,9 +31,11 @@ def read_poses(poses_path: Path) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         [[float(entry) for entry in line.strip().split(", ")] for line in content],
         dtype=np.float32,
     )
+    seqs = parsed_poses[:, 0].astype(int)
+    img_ids = parsed_poses[:, 1].astype(int)
     positions = parsed_poses[:, 6:]
     rotmats = quat_to_rotmat(parsed_poses[:, 2:6])
-    return parsed_poses[:, 1].astype(int), positions, rotmats
+    return seqs, img_ids, positions, rotmats
 
 
 def compute_scene_dims(scene_path: Path, margin_ratio: float = 0.2) -> np.ndarray:
@@ -44,8 +49,8 @@ def compute_scene_dims(scene_path: Path, margin_ratio: float = 0.2) -> np.ndarra
         2D array with rows containing minimum, maximum and margin values repectively,
         and columns the x, y, z axes, shape (3, 3)
     """
-    _, train_positions, _ = read_poses(scene_path / "train/seq00/poses_seq00.txt")
-    _, test_positions, _ = read_poses(scene_path / "test/seq01/poses_seq01.txt")
+    _, _, train_positions, _ = read_poses(scene_path / "train/seq00/poses_seq00.txt")
+    _, _, test_positions, _ = read_poses(scene_path / "test/seq01/poses_seq01.txt")
     positions = np.concatenate((train_positions, test_positions))
     mins = np.min(positions, axis=0)
     maxs = np.max(positions, axis=0)
