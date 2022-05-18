@@ -1,6 +1,6 @@
 """Module that contains utils functions."""
 
-from typing import Tuple
+from typing import Tuple, Union
 from pathlib import Path
 
 import numpy as np
@@ -8,7 +8,7 @@ from scipy.spatial.transform import Rotation
 import torch
 
 
-def read_poses(poses_path: Path) -> Tuple[np.ndarray, np.ndarray]:
+def read_poses(poses_path: Path) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Read poses of a sequence from text file.
 
     Every row of the text file is one pose containing
@@ -19,7 +19,8 @@ def read_poses(poses_path: Path) -> Tuple[np.ndarray, np.ndarray]:
 
     Returns:
         image IDs, shape (N,)
-        image poses [qw, qx, qy, qz, tx, ty, tz], shape (N, 7)
+        image positions, shape (N, 3)
+        image rotation matrices, shape (N, 3, 3)
     """
     with open(poses_path) as f:
         content = f.readlines()
@@ -27,7 +28,9 @@ def read_poses(poses_path: Path) -> Tuple[np.ndarray, np.ndarray]:
         [[float(entry) for entry in line.strip().split(", ")] for line in content],
         dtype=np.float32,
     )
-    return parsed_poses[:, 1].astype(int), parsed_poses[:, 2:]
+    positions = parsed_poses[:, 6:]
+    rotmats = quat_to_rotmat(parsed_poses[:, 2:6])
+    return parsed_poses[:, 1].astype(int), positions, rotmats
 
 
 def compute_scene_dims(scene_path: Path, margin_ratio: float = 0.2) -> np.ndarray:
@@ -41,9 +44,9 @@ def compute_scene_dims(scene_path: Path, margin_ratio: float = 0.2) -> np.ndarra
         2D array with rows containing minimum, maximum and margin values repectively,
         and columns the x, y, z axes, shape (3, 3)
     """
-    _, train_poses = read_poses(scene_path / "train/seq00/poses_seq00.txt")
-    _, test_poses = read_poses(scene_path / "test/seq01/poses_seq01.txt")
-    positions = np.concatenate((train_poses, test_poses))[:, 4:]
+    _, train_positions, _ = read_poses(scene_path / "train/seq00/poses_seq00.txt")
+    _, test_positions, _ = read_poses(scene_path / "test/seq01/poses_seq01.txt")
+    positions = np.concatenate((train_positions, test_positions))
     mins = np.min(positions, axis=0)
     maxs = np.max(positions, axis=0)
     margins = margin_ratio * (maxs - mins)
@@ -187,3 +190,34 @@ def rotmat_to_quat(rot: np.ndarray) -> np.ndarray:
     rotation = Rotation.from_matrix(rot)
     quat = rotation.as_quat()
     return np.roll(quat, 1, axis=1)
+
+
+def quat_to_rotmat(
+    quat: Union[torch.Tensor, np.ndarray]
+) -> Union[torch.Tensor, np.ndarray]:
+    """Conver quaternions to rotation matrices.
+
+    Args:
+        quat: quaternions in [w, x, y, z] parameterization, shape (N, 4)
+
+    Returns:
+        rotation matrices, shape (N, 3, 3)
+    """
+    qw, qx, qy, qz = quat.T
+    qw2, qx2, qy2, qz2 = qw ** 2, qx ** 2, qy ** 2, qz ** 2
+    qwx, qwy, qwz = qw * qx, qw * qy, qw * qz
+    qxy, qxz, qyz = qx * qy, qx * qz, qy * qz
+    vstack = torch.vstack if type(quat) is torch.Tensor else np.vstack
+    return vstack(
+        [
+            qw2 + qx2 - qy2 - qz2,
+            2 * qxy - 2 * qwz,
+            2 * qwy + 2 * qxz,
+            2 * qwz + 2 * qxy,
+            qw2 - qx2 + qy2 - qz2,
+            2 * qyz - 2 * qwx,
+            2 * qxz - 2 * qwy,
+            2 * qwx + 2 * qyz,
+            qw2 - qx2 - qy2 + qz2,
+        ]
+    ).T.reshape(-1, 3, 3)

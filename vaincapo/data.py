@@ -46,33 +46,11 @@ class AmbiguousImages(Dataset):
         self._augment = augment
         self._root_dir = Path(root)
         self._images_dir = self._root_dir / "rgb_matched"
-        self._im_ids, poses = read_poses(
+        self._im_ids, self._trans, self._rotmats = read_poses(
             self._root_dir / f"poses_{self._root_dir.name}.txt"
         )
         image_paths = sorted(glob(str(self._images_dir / "*.png")))
-        assert len(poses) == len(image_paths)
-
-        qw = poses[:, 0]
-        qx = poses[:, 1]
-        qy = poses[:, 2]
-        qz = poses[:, 3]
-        qw2, qx2, qy2, qz2 = qw ** 2, qx ** 2, qy ** 2, qz ** 2
-        qwx, qwy, qwz = qw * qx, qw * qy, qw * qz
-        qxy, qxz, qyz = qx * qy, qx * qz, qy * qz
-        self._rotmats = np.vstack(
-            [
-                qw2 + qx2 - qy2 - qz2,
-                2 * qxy - 2 * qwz,
-                2 * qwy + 2 * qxz,
-                2 * qwz + 2 * qxy,
-                qw2 - qx2 + qy2 - qz2,
-                2 * qyz - 2 * qwx,
-                2 * qxz - 2 * qwy,
-                2 * qwx + 2 * qyz,
-                qw2 - qx2 - qy2 + qz2,
-            ]
-        ).T.reshape(-1, 3, 3)
-        self._trans = poses[:, -3:]
+        assert len(self._im_ids) == len(image_paths)
 
         height = 960
         width = 540
