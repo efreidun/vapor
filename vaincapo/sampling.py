@@ -70,7 +70,6 @@ class BMM:
         self._density_upper_bound = torch.sum(
             self._weights * torch.exp(self.log_prob(self._locations))
         )
-        print("density upper bound:", self._density_upper_bound)
 
     def log_prob(self, value: torch.Tensor) -> torch.Tensor:
         """Evaluate log probability of the distribution.
