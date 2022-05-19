@@ -10,7 +10,7 @@ import cv2
 import numpy as np
 from tqdm import tqdm
 
-from vaincapo.utils import read_poses
+from vaincapo.utils import read_poses, get_ingp_transform
 
 
 def parse_arguments() -> dict:
@@ -53,13 +53,11 @@ def get_frame(
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
     sharpness = cv2.Laplacian(gray, cv2.CV_64F).var()
 
-    tfmat = np.concatenate(
-        (np.concatenate((rotmat, position[:, None]), axis=1), np.array([[0, 0, 0, 1]]))
-    ).tolist()
+    transform = get_ingp_transform(position[None, :], rotmat[None, :, :])[0].tolist()
     return {
         "file_path": file_path,
         "sharpness": sharpness,
-        "transform_matrix": tfmat,
+        "transform_matrix": transform,
     }
 
 
@@ -78,7 +76,7 @@ def main(config: dict) -> None:
         "cy": camera_params["camera_matrix"]["data"][5],
         "w": camera_params["image_width"],
         "h": camera_params["image_height"],
-        "aabb_scale": 16,
+        "aabb_scale": 4,
     }
     params["camera_angle_x"] = np.arctan(params["w"] / (params["fl_x"] * 2)) * 2
     params["camera_angle_y"] = np.arctan(params["h"] / (params["fl_y"] * 2)) * 2

@@ -226,3 +226,58 @@ def quat_to_rotmat(
             qw2 - qx2 - qy2 + qz2,
         ]
     ).T.reshape(-1, 3, 3)
+
+
+def create_tfmat(
+    tvec: Union[torch.Tensor, np.ndarray], rotmat: Union[torch.Tensor, np.ndarray]
+) -> Union[torch.Tensor, np.ndarray]:
+    """Create tfmat from translation vector and rotation matrix.
+
+    Args:
+        tra: translation vector, shape (N, 3)
+        rotmat: rotation matrix, shape (N, 3, 3)
+
+    Returns:
+        transformation matrix, shape (N, 4, 4)
+    """
+    if type(tvec) is torch.Tensor:
+        return torch.cat(
+            (
+                torch.cat((rotmat, tvec[:, :, None]), dim=2),
+                torch.tensor([[[0, 0, 0, 1]]], device=tvec.device).repeat(
+                    len(tvec), 1, 1
+                ),
+            ),
+            dim=1,
+        )
+    else:
+        return np.concatenate(
+            (
+                np.concatenate((rotmat, tvec[:, :, None]), axis=2),
+                np.tile(np.array([[[0, 0, 0, 1]]]), (len(tvec), 1, 1)),
+            ),
+            axis=1,
+        )
+
+
+def get_ingp_transform(tvec: np.ndarray, rotmat: np.ndarray) -> np.ndarray:
+    """Get the transform for instant neural graphics primitives pipeline.
+
+    The input translation and rotation must define a camera-to-world transformation.
+
+    Args:
+        tvec: translation vector, shape (N, 3)
+        rotmat: rotation matrix, shape (N, 3, 3)
+
+    Returns:
+        transformation matrix as required by ingp
+    """
+    transform = create_tfmat(tvec, rotmat)
+
+    # manipulate as done in ingp
+    transform[:, 0:3, 2] *= -1  # flip the y and z axis
+    transform[:, 0:3, 1] *= -1
+    transform = transform[:, [1, 0, 2, 3], :]  # swap y and z
+    transform[:, 2, :] *= -1  # flip whole world upside down
+
+    return transform
