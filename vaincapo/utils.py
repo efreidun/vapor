@@ -270,7 +270,7 @@ def get_ingp_transform(tvec: np.ndarray, rotmat: np.ndarray) -> np.ndarray:
         rotmat: rotation matrix, shape (N, 3, 3)
 
     Returns:
-        transformation matrix as required by ingp
+        transformation matrix as required by ingp, shape (N, 4, 4)
     """
     transform = create_tfmat(tvec, rotmat)
 

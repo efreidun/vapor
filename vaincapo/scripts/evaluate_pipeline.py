@@ -3,6 +3,7 @@
 from pathlib import Path
 from types import SimpleNamespace
 import yaml
+import json
 
 import argparse
 import torch
@@ -13,7 +14,12 @@ import numpy as np
 from vaincapo.data import AmbiguousImages
 from vaincapo.models import Encoder, PoseMap
 from vaincapo.inference import forward_pass
-from vaincapo.utils import read_scene_dims, compute_scene_dims, rotmat_to_quat
+from vaincapo.utils import (
+    get_ingp_transform,
+    read_scene_dims,
+    compute_scene_dims,
+    rotmat_to_quat,
+)
 from vaincapo.evaluation import (
     evaluate_tras_likelihood,
     evaluate_rots_likelihood,
@@ -30,11 +36,13 @@ def parse_arguments() -> dict:
     parser = argparse.ArgumentParser(
         description="Train camera pose posterior inference pipeline."
     )
-    parser.add_argument("--run", type=str)
+    parser.add_argument("run", type=str)
     parser.add_argument("--epoch", type=int, default=None)
     parser.add_argument("--batch_size", type=int, default=None)
     parser.add_argument("--num_samples", type=int, default=1000)
+    parser.add_argument("--num_renders", type=int, default=10)
     parser.add_argument("--num_workers", type=int, default=4)
+    parser.add_argument("--device", type=str)
     args = parser.parse_args()
 
     return vars(args)
@@ -54,7 +62,7 @@ def main(config: dict) -> None:
     train_cfg = SimpleNamespace(**train_config)
 
     torch.set_grad_enabled(False)
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = cfg.device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
     scene_path = Path.home() / "data" / "Ambiguous_ReLoc_Dataset" / train_cfg.sequence
     try:
         scene_dims = read_scene_dims(scene_path)
@@ -86,11 +94,11 @@ def main(config: dict) -> None:
     recalls = []
     tra_log_likelihoods = []
     rot_log_likelihoods = []
-    datasets = {"train": train_set, "valid": valid_set}
-    for dataset in datasets.values():
+    split_sets = {"train": train_set, "valid": valid_set}
+    for split_name, split_set in split_sets.items():
         dataloader = DataLoader(
-            dataset,
-            batch_size=cfg.batch_size or len(dataset),
+            split_set,
+            batch_size=cfg.batch_size or len(split_set),
             num_workers=cfg.num_workers,
         )
         tras = []
@@ -117,6 +125,34 @@ def main(config: dict) -> None:
         tra_hat = torch.cat(tra_hats)
         rot = torch.cat(rots)
         rot_hat = torch.cat(rot_hats)
+
+        if split_name == "valid":
+            query_digits = len(str(len(tra_hat)))
+            render_digits = len(str(cfg.num_renders))
+            ingp_params = {
+                "scene": train_cfg.sequence,
+                "num_renders": cfg.num_renders,
+                "split": split_name,
+                "frames": [
+                    {
+                        "file_path": f"{str(query).zfill(query_digits)}_{str(i).zfill(render_digits)}.png",
+                        "transform_matrix": transform.tolist(),
+                    }
+                    for query, transforms in enumerate(
+                        get_ingp_transform(
+                            tra_hat[:, : cfg.num_renders].reshape(-1, 3).cpu().numpy(),
+                            rot_hat[:, : cfg.num_renders]
+                            .reshape(-1, 3, 3)
+                            .cpu()
+                            .numpy(),
+                        ).reshape(-1, cfg.num_renders, 4, 4)
+                    )
+                    for i, transform in enumerate(transforms)
+                ],
+            }
+            with open(run_path / "transforms.json", "w") as f:
+                json.dump(ingp_params, f, indent=4)
+
         rot_quat = torch.tensor(rotmat_to_quat(rot.cpu().numpy()))
         rot_quat_hat = torch.tensor(
             rotmat_to_quat(rot_hat.reshape(-1, 3, 3).cpu().numpy())
@@ -150,9 +186,10 @@ def main(config: dict) -> None:
     recalls = np.transpose(np.array(recalls), (2, 0, 1))
     recall_matrix = [["rec_th", "samps"] + [str(val) for val in recall_min_samples]]
     for (tra_thr, rot_thr), thr_recalls in zip(recall_thresholds, recalls):
-        for split, vals in zip(datasets.keys(), thr_recalls):
+        for split_name, vals in zip(split_sets.keys(), thr_recalls):
             recall_matrix.append(
-                [f"{tra_thr}/{int(rot_thr)}", split] + [f"{val:.2f}" for val in vals]
+                [f"{tra_thr}/{int(rot_thr)}", split_name]
+                + [f"{val:.2f}" for val in vals]
             )
     recall_matrix = np.array(recall_matrix).T
     m, n = recall_matrix.shape
@@ -160,17 +197,17 @@ def main(config: dict) -> None:
     loglik_matrix = [
         ["t_logl", "sigma"] + [f"{val:.2f}" for val in kde_gaussian_sigmas]
     ]
-    for i, split in enumerate(datasets.keys()):
+    for i, split_name in enumerate(split_sets.keys()):
         loglik_matrix.append(
-            ["t_logl", split] + [f"{val:.2f}" for val in tra_log_likelihoods[i]]
+            ["t_logl", split_name] + [f"{val:.2f}" for val in tra_log_likelihoods[i]]
         )
     loglik_matrix.append(
         ["r_logl", "lambda"]
         + [f"{val:.2f}" if val < 1000 else f"{val:.1f}" for val in kde_bingham_lambdas]
     )
-    for i, split in enumerate(datasets.keys()):
+    for i, split_name in enumerate(split_sets.keys()):
         loglik_matrix.append(
-            ["r_logl", split] + [f"{val:.2f}" for val in rot_log_likelihoods[i]]
+            ["r_logl", split_name] + [f"{val:.2f}" for val in rot_log_likelihoods[i]]
         )
     loglik_matrix = np.array(loglik_matrix).T
     p, q = loglik_matrix.shape
