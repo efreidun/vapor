@@ -37,8 +37,8 @@ def parse_arguments() -> dict:
         description="Train camera pose posterior inference pipeline."
     )
     parser.add_argument("run", type=str)
-    parser.add_argument("--epoch", type=int, default=None)
-    parser.add_argument("--batch_size", type=int, default=None)
+    parser.add_argument("--epoch", type=int)
+    parser.add_argument("--batch_size", type=int)
     parser.add_argument("--num_samples", type=int, default=1000)
     parser.add_argument("--num_renders", type=int, default=10)
     parser.add_argument("--num_workers", type=int, default=4)
@@ -129,10 +129,13 @@ def main(config: dict) -> None:
         if split_name == "valid":
             query_digits = len(str(len(tra_hat)))
             render_digits = len(str(cfg.num_renders))
+            with open(scene_path / "transforms.json") as f:
+                transforms = json.load(f)
             ingp_params = {
                 "scene": train_cfg.sequence,
                 "num_renders": cfg.num_renders,
                 "split": split_name,
+                "camera_angle_x": transforms["camera_angle_x"],
                 "frames": [
                     {
                         "file_path": f"{str(query).zfill(query_digits)}_{str(i).zfill(render_digits)}.png",

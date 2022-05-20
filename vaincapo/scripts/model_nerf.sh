@@ -12,5 +12,5 @@ do
         --training_data $scene_dir_path/transforms.json \
         --mode nerf \
         --n_steps 100000 \
-        --save_snapshot $scene_dir_path/nerf.msgpack \
+        --save_snapshot $scene_dir_path/nerf.msgpack
 done
