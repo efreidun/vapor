@@ -12,7 +12,7 @@ from torch.utils.data import DataLoader
 from torch.optim import Adam
 import wandb
 
-from vaincapo.data import AmbiguousImages
+from vaincapo.data import AmbiguousReloc
 from vaincapo.models import Encoder, PoseMap
 from vaincapo.utils import (
     read_scene_dims,
@@ -45,7 +45,14 @@ def parse_arguments() -> dict:
     parser.add_argument("--lr", type=float, default=1e-4)
     parser.add_argument("--batch_size", type=int, default=16)
     parser.add_argument("--image_size", type=int, default=64)
-    parser.add_argument("--augment", type=bool, default=True)
+    parser.add_argument("--image_mode", type=str, default="resize")
+    parser.add_argument("--image_crop", type=float, default=0.9)
+    parser.add_argument("--gauss_kernel", type=int, default=3)
+    parser.add_argument("--gauss_sigma", type=float, default=(0.1, 1.0))
+    parser.add_argument("--jitter_brightness", type=float, default=0.05)
+    parser.add_argument("--jitter_contrast", type=float, default=0.05)
+    parser.add_argument("--jitter_saturation", type=float, default=0.05)
+    parser.add_argument("--jitter_hue", type=float, default=0.05)
     parser.add_argument("--latent_dim", type=int, default=16)
     parser.add_argument("--num_samples", type=int, default=1000)
     parser.add_argument("--top_percent", type=float, default=0.2)
@@ -58,7 +65,8 @@ def parse_arguments() -> dict:
     parser.add_argument("--kde_gaussian_sigma", type=float, default=0.1)
     parser.add_argument("--kde_bingham_lambda", type=float, default=40.0)
     parser.add_argument("--recall_min_samples", type=int, default=20)
-    parser.add_argument("--num_workers", type=int, default=4)
+    parser.add_argument("--num_workers", type=int, default=2)
+    parser.add_argument("--device", type=str)
     args = parser.parse_args()
 
     return vars(args)
@@ -84,14 +92,36 @@ def main(config: dict) -> None:
         yaml.dump(config, f)
     wandb.save(str(run_path / "config.yaml"))
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    device = cfg.device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
     scene_path = Path.home() / "data" / "Ambiguous_ReLoc_Dataset" / cfg.sequence
     try:
         scene_dims = read_scene_dims(scene_path)
     except FileNotFoundError:
         scene_dims = compute_scene_dims(scene_path)
-    train_set = AmbiguousImages(scene_path / "train/seq00", cfg.image_size, cfg.augment)
-    valid_set = AmbiguousImages(scene_path / "test/seq01", cfg.image_size, cfg.augment)
+    train_set = AmbiguousReloc(
+        scene_path / "train",
+        cfg.image_size,
+        cfg.image_mode,
+        cfg.image_crop,
+        cfg.gauss_kernel,
+        cfg.gauss_sigma,
+        cfg.jitter_brightness,
+        cfg.jitter_contrast,
+        cfg.jitter_saturation,
+        cfg.jitter_hue,
+    )
+    valid_set = AmbiguousReloc(
+        scene_path / "test",
+        cfg.image_size,
+        cfg.image_mode,
+        cfg.image_crop,
+        cfg.gauss_kernel,
+        cfg.gauss_sigma,
+        cfg.jitter_brightness,
+        cfg.jitter_contrast,
+        cfg.jitter_saturation,
+        cfg.jitter_hue,
+    )
 
     train_loader = DataLoader(
         train_set,
