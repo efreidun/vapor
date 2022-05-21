@@ -18,9 +18,7 @@ do
     echo "evaluating run $run in scene $scene"
     python $scripts_dir_path/evaluate_pipeline.py $run
     python $code_dir_path/instant-ngp/scripts/run.py \
-        --training_data $scene_dir_path/transforms.json \
         --mode nerf \
-        --n_steps 0 \
         --load_snapshot $scene_dir_path/nerf.msgpack \
         --screenshot_transforms $run_dir_path/transforms.json \
         --screenshot_dir $run_dir_path/renders \
