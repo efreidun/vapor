@@ -49,9 +49,10 @@ def compute_scene_dims(scene_path: Path, margin_ratio: float = 0.2) -> np.ndarra
         2D array with rows containing minimum, maximum and margin values repectively,
         and columns the x, y, z axes, shape (3, 3)
     """
-    _, _, train_positions, _ = read_poses(scene_path / "train/seq00/poses_seq00.txt")
-    _, _, test_positions, _ = read_poses(scene_path / "test/seq01/poses_seq01.txt")
-    positions = np.concatenate((train_positions, test_positions))
+    poses_paths = scene_path.glob("**/poses_seq*.txt")
+    positions = np.concatenate(
+        [read_poses(poses_path)[2] for poses_path in poses_paths]
+    )
     mins = np.min(positions, axis=0)
     maxs = np.max(positions, axis=0)
     margins = margin_ratio * (maxs - mins)
