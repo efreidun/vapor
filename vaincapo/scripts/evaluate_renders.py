@@ -20,7 +20,7 @@ def parse_arguments() -> dict:
         Passed arguments as dictionary.
     """
     parser = argparse.ArgumentParser(
-        description="Train camera pose posterior inference pipeline."
+        description="Evaluate renders from camera pose posterior samples."
     )
     parser.add_argument("run", type=str)
     parser.add_argument("--height", type=int)
@@ -41,7 +41,7 @@ def main(config: dict) -> None:
     with open(run_path / "transforms.json") as f:
         transforms = json.load(f)
     valid_path = (
-        Path.home() / "data" / "Ambiguous_ReLoc_Dataset" / train_cfg.sequence / "test"
+        Path.home() / "data/Ambiguous_ReLoc_Dataset" / train_cfg.sequence / "test"
     )
 
     renders_path = run_path / "renders"

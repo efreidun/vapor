@@ -74,7 +74,7 @@ def parse_arguments() -> dict:
 
 def main(config: dict) -> None:
     recall_thresholds = [[0.1, 10.0], [0.2, 15.0], [0.3, 20.0], [1.0, 60.0]]
-    base_path = Path.home() / "code" / "vaincapo"
+    base_path = Path.home() / "code/vaincapo"
     wandb.init(
         project="vaincapo_pipeline",
         entity="efreidun",
@@ -93,7 +93,7 @@ def main(config: dict) -> None:
     wandb.save(str(run_path / "config.yaml"))
 
     device = cfg.device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    scene_path = Path.home() / "data" / "Ambiguous_ReLoc_Dataset" / cfg.sequence
+    scene_path = Path.home() / "data/Ambiguous_ReLoc_Dataset" / cfg.sequence
     try:
         scene_dims = read_scene_dims(scene_path)
     except FileNotFoundError:

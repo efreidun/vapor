@@ -3,7 +3,6 @@
 from pathlib import Path
 from types import SimpleNamespace
 import yaml
-import json
 
 import argparse
 import torch
@@ -63,7 +62,7 @@ def main(config: dict) -> None:
 
     torch.set_grad_enabled(False)
     device = cfg.device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    scene_path = Path.home() / "data" / "Ambiguous_ReLoc_Dataset" / train_cfg.sequence
+    scene_path = Path.home() / "data/Ambiguous_ReLoc_Dataset" / train_cfg.sequence
     try:
         scene_dims = read_scene_dims(scene_path)
     except FileNotFoundError:
