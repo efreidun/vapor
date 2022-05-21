@@ -22,7 +22,7 @@ def read_poses(
     Returns:
         image sequence identifier, shape (N,)
         image IDs, shape (N,)
-        image positions, shape (N, 3)
+        image translation vectors, shape (N, 3)
         image rotation matrices, shape (N, 3, 3)
     """
     with open(poses_path) as f:
@@ -31,11 +31,11 @@ def read_poses(
         [[float(entry) for entry in line.strip().split(", ")] for line in content],
         dtype=np.float32,
     )
-    seqs = parsed_poses[:, 0].astype(int)
+    seq_ids = parsed_poses[:, 0].astype(int)
     img_ids = parsed_poses[:, 1].astype(int)
-    positions = parsed_poses[:, 6:]
+    tvecs = parsed_poses[:, 6:]
     rotmats = quat_to_rotmat(parsed_poses[:, 2:6])
-    return seqs, img_ids, positions, rotmats
+    return seq_ids, img_ids, tvecs, rotmats
 
 
 def compute_scene_dims(scene_path: Path, margin_ratio: float = 0.2) -> np.ndarray:
