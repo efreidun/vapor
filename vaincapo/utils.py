@@ -104,6 +104,7 @@ def write_sample_transforms(
         scene_path: path where scene's original transforms.json exists
         split_name: "train" or "valid"
     """
+    assert num_renders <= tra_samples.shape[1], "Cannot render more images than samples"
     id_digits = len(str(len(names) * num_renders))
     render_digits = len(str(num_renders))
     with open(scene_path / "transforms.json") as f:
@@ -116,8 +117,9 @@ def write_sample_transforms(
         "frames": [
             {
                 "query_image": name,
-                "file_path": f"{str(num_renders * j + i).zfill(id_digits)}"
-                + f"_{name[:-4]}_{str(i).zfill(render_digits)}.png",
+                "file_path": f"{'/'.join(name.split('/')[:-1])}/"
+                + f"{str(num_renders * j + i).zfill(id_digits)}"
+                + f"_{name[:-4].split('/')[-1]}_{str(i).zfill(render_digits)}.png",
                 "transform_matrix": transform.tolist(),
             }
             for j, (name, transforms) in enumerate(
