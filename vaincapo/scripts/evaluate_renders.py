@@ -91,7 +91,7 @@ def main(config: dict) -> None:
     with open(run_path / "photometrics.txt", "w") as f:
         f.write(
             f"{cfg.run} {len(query_images)} test {train_cfg.sequence} query"
-            + f" images with {m} {cfg.width}x{cfg.height} renders each\n"
+            + f" {cfg.reference}s with {m} {cfg.width}x{cfg.height} renders each\n"
         )
         f.write(f"MSE: {np.mean(mses)}\n")
         f.write(f"SSIM: {np.mean(ssims)}\n")
