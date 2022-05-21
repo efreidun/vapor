@@ -4,7 +4,7 @@ bash_script_path=$(realpath $0)
 code_dir_path=$(dirname $(dirname $(dirname $(dirname $bash_script_path))))
 parent_dir_path=$(dirname $code_dir_path)
 
-for scene in "blue_chairs"
+for scene in "meeting_table"
 do
     echo "modelling NeRF of scene $scene using Instant-NGP"
     scene_dir_path="$parent_dir_path/data/Ambiguous_ReLoc_Dataset/$scene"

@@ -1,15 +1,16 @@
 #!/bin/bash
 
 bash_script_path=$(realpath $0)
-scripts_dir_path=$(dirname $bash_script_path)
-repo_dir_path=$(dirname $(dirname $scripts_dir_path))
+package_dir_path=$(dirname $(dirname $bash_script_path))
+scripts_dir_path="$package_dir_path/scripts"
+repo_dir_path=$(dirname $package_dir_path)
 code_dir_path=$(dirname $repo_dir_path)
 parent_dir_path=$(dirname $code_dir_path)
 
 render_height=240
 render_width=135
 
-for run in "chocolate-microwave-113"
+for run in "distinctive-planet-218"
 do
     run_dir_path="$repo_dir_path/runs/$run"
     scene=$(yq .sequence $run_dir_path/config.yaml)
