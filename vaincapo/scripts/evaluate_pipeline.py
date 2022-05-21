@@ -15,7 +15,8 @@ from vaincapo.data import AmbiguousReloc
 from vaincapo.models import Encoder, PoseMap
 from vaincapo.inference import forward_pass
 from vaincapo.utils import (
-    get_ingp_transform,
+    write_metrics,
+    write_sample_transforms,
     read_scene_dims,
     compute_scene_dims,
     rotmat_to_quat,
@@ -34,7 +35,7 @@ def parse_arguments() -> dict:
         Passed arguments as dictionary.
     """
     parser = argparse.ArgumentParser(
-        description="Train camera pose posterior inference pipeline."
+        description="Evaluate camera pose posterior inference pipeline."
     )
     parser.add_argument("run", type=str)
     parser.add_argument("--epoch", type=int)
@@ -55,8 +56,7 @@ def main(config: dict) -> None:
     recall_min_samples = [1, 5, 10, 15, 20, 25, 50, 75, 100, 200]
 
     cfg = SimpleNamespace(**config)
-    base_path = Path.home() / "code" / "vaincapo"
-    run_path = base_path / "runs" / cfg.run
+    run_path = Path.home() / "code/vaincapo/runs" / cfg.run
     with open(run_path / "config.yaml") as f:
         train_config = yaml.load(f, Loader=yaml.FullLoader)
     train_cfg = SimpleNamespace(**train_config)
@@ -146,48 +146,11 @@ def main(config: dict) -> None:
         rot = torch.cat(rots)
         rot_hat = torch.cat(rot_hats)
 
-        if split_name == "valid":
-            id_digits = len(str(len(split_set) * cfg.num_renders))
-            render_digits = len(str(cfg.num_renders))
-            with open(scene_path / "transforms.json") as f:
-                scene_transforms = json.load(f)
-            ingp_params = {
-                "scene": train_cfg.sequence,
-                "num_renders": cfg.num_renders,
-                "split": split_name,
-                "camera_angle_x": scene_transforms["camera_angle_x"],
-                "frames": [
-                    {
-                        "query_image": name,
-                        "file_path": f"{str(cfg.num_renders * j + i).zfill(id_digits)}"
-                        + f"_{name[:-4]}_{str(i).zfill(render_digits)}.png",
-                        "transform_matrix": transform.tolist(),
-                    }
-                    for j, (name, transforms) in enumerate(
-                        zip(
-                            names,
-                            get_ingp_transform(
-                                tra_hat[:, : cfg.num_renders]
-                                .reshape(-1, 3)
-                                .cpu()
-                                .numpy(),
-                                rot_hat[:, : cfg.num_renders]
-                                .reshape(-1, 3, 3)
-                                .cpu()
-                                .numpy(),
-                            ).reshape(-1, cfg.num_renders, 4, 4),
-                        )
-                    )
-                    for i, transform in enumerate(transforms)
-                ],
-            }
-            with open(run_path / "transforms.json", "w") as f:
-                json.dump(ingp_params, f, indent=4)
-
         rot_quat = torch.tensor(rotmat_to_quat(rot.cpu().numpy()))
         rot_quat_hat = torch.tensor(
             rotmat_to_quat(rot_hat.reshape(-1, 3, 3).cpu().numpy())
         ).reshape(*rot_hat.shape[:2], 4)
+
         recalls.append(
             [
                 evaluate_recall(
@@ -214,52 +177,30 @@ def main(config: dict) -> None:
             ]
         )
 
-    recalls = np.transpose(np.array(recalls), (2, 0, 1))
-    recall_matrix = [["rec_th", "samps"] + [str(val) for val in recall_min_samples]]
-    for (tra_thr, rot_thr), thr_recalls in zip(recall_thresholds, recalls):
-        for split_name, vals in zip(split_sets.keys(), thr_recalls):
-            recall_matrix.append(
-                [f"{tra_thr}/{int(rot_thr)}", split_name]
-                + [f"{val:.2f}" for val in vals]
+        if split_name == "valid":
+            write_sample_transforms(
+                tra_hat.cpu().numpy(),
+                rot_hat.cpu().numpy(),
+                names,
+                cfg.num_renders,
+                run_path,
+                scene_path,
+                split_name,
             )
-    recall_matrix = np.array(recall_matrix).T
-    m, n = recall_matrix.shape
 
-    loglik_matrix = [
-        ["t_logl", "sigma"] + [f"{val:.2f}" for val in kde_gaussian_sigmas]
-    ]
-    for i, split_name in enumerate(split_sets.keys()):
-        loglik_matrix.append(
-            ["t_logl", split_name] + [f"{val:.2f}" for val in tra_log_likelihoods[i]]
-        )
-    loglik_matrix.append(
-        ["r_logl", "lambda"]
-        + [f"{val:.2f}" if val < 1000 else f"{val:.1f}" for val in kde_bingham_lambdas]
+    write_metrics(
+        recalls,
+        tra_log_likelihoods,
+        rot_log_likelihoods,
+        recall_thresholds,
+        recall_min_samples,
+        kde_gaussian_sigmas,
+        kde_bingham_lambdas,
+        split_sets.keys(),
+        f"{cfg.run} epoch {int(encoder_path.stem.split('_')[1])}"
+        + f" with {cfg.num_samples} samples",
+        run_path,
     )
-    for i, split_name in enumerate(split_sets.keys()):
-        loglik_matrix.append(
-            ["r_logl", split_name] + [f"{val:.2f}" for val in rot_log_likelihoods[i]]
-        )
-    loglik_matrix = np.array(loglik_matrix).T
-    p, q = loglik_matrix.shape
-
-    if m > p:
-        filler = np.empty((m - p, q), dtype=str)
-        filler[:] = "-"
-        loglik_matrix = np.concatenate((loglik_matrix, filler))
-    elif m < p:
-        filler = np.empty((p - m, n), dtype=str)
-        filler[:] = "-"
-        recall_matrix = np.concatenate((recall_matrix, filler))
-    results_matrix = np.concatenate((loglik_matrix, recall_matrix), axis=1)
-
-    with open(run_path / "metrics.txt", "w") as f:
-        f.write(
-            f"{cfg.run} epoch {int(encoder_path.stem.split('_')[1])}"
-            + f" with {cfg.num_samples} samples\n"
-        )
-        for row in results_matrix:
-            f.write("\t".join([val.ljust(6) for val in row]) + "\n")
 
 
 if __name__ == "__main__":

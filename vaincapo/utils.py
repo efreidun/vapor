@@ -1,11 +1,139 @@
 """Module that contains utils functions."""
 
-from typing import Tuple, Union
+from typing import Tuple, Union, List, Iterable
 from pathlib import Path
+import json
 
 import numpy as np
 from scipy.spatial.transform import Rotation
 import torch
+
+
+def write_metrics(
+    recalls: List[List[List[float]]],
+    tra_log_likelihoods: List[List[torch.Tensor]],
+    rot_log_likelihoods: List[List[torch.Tensor]],
+    recall_thresholds: Iterable[Iterable[float]],
+    recall_min_samples: Iterable[int],
+    kde_gaussian_sigmas: Iterable[float],
+    kde_bingham_lambdas: Iterable[float],
+    split_names: Iterable[str],
+    header: str,
+    run_path: Path,
+) -> None:
+    """Write evaluation results in metrics.txt.
+
+    Args:
+        recalls: recorded recalls,
+            if in array, has shape (num_splits, num_min_samples, num_thresholds)
+        tra_log_likelihoods: recorded translation log-likelihoods,
+            if in array, has shape (num_splits, num_kde_sigmas)
+        rot_log_likelihoods: recorded rotation log-likelihoods,
+            if in array, has shape (num_splits, num_kde_sigmas)
+        recall_thresholds: evaluated recall thresholds,
+            a sequence of (tra (m), rot (deg)) pairs
+        recall_min_samples: minimum number of samples that define a true-positive
+        kde_gaussian_sigmas: evaluated Gaussian kernel sigmas for KDE
+        kde_bingham_lambdas: evaluated Bingham kernel lambdas for KDe
+        split_names: sequence of split names
+        header: text written on the first line of the saved file (without newline char)
+        run_path: path to the run where the results will be saved
+    """
+    recalls = np.transpose(np.array(recalls), (2, 0, 1))
+    recall_matrix = [["rec_th", "samps"] + [str(val) for val in recall_min_samples]]
+    for (tra_thr, rot_thr), thr_recalls in zip(recall_thresholds, recalls):
+        for split_name, vals in zip(split_names, thr_recalls):
+            recall_matrix.append(
+                [f"{tra_thr}/{int(rot_thr)}", split_name]
+                + [f"{val:.2f}" for val in vals]
+            )
+    recall_matrix = np.array(recall_matrix).T
+    m, n = recall_matrix.shape
+
+    loglik_matrix = [
+        ["t_logl", "sigma"] + [f"{val:.2f}" for val in kde_gaussian_sigmas]
+    ]
+    for i, split_name in enumerate(split_names):
+        loglik_matrix.append(
+            ["t_logl", split_name] + [f"{val:.2f}" for val in tra_log_likelihoods[i]]
+        )
+    loglik_matrix.append(
+        ["r_logl", "lambda"]
+        + [f"{val:.2f}" if val < 1000 else f"{val:.1f}" for val in kde_bingham_lambdas]
+    )
+    for i, split_name in enumerate(split_names):
+        loglik_matrix.append(
+            ["r_logl", split_name] + [f"{val:.2f}" for val in rot_log_likelihoods[i]]
+        )
+    loglik_matrix = np.array(loglik_matrix).T
+    p, q = loglik_matrix.shape
+
+    if m > p:
+        filler = np.empty((m - p, q), dtype=str)
+        filler[:] = "-"
+        loglik_matrix = np.concatenate((loglik_matrix, filler))
+    elif m < p:
+        filler = np.empty((p - m, n), dtype=str)
+        filler[:] = "-"
+        recall_matrix = np.concatenate((recall_matrix, filler))
+    results_matrix = np.concatenate((loglik_matrix, recall_matrix), axis=1)
+
+    with open(run_path / "metrics.txt", "w") as f:
+        f.write(header + "\n")
+        for row in results_matrix:
+            f.write("\t".join([val.ljust(6) for val in row]) + "\n")
+
+
+def write_sample_transforms(
+    tra_samples: np.ndarray,
+    rot_samples: np.ndarray,
+    names: List[str],
+    num_renders: int,
+    run_path: Path,
+    scene_path: Path,
+    split_name: str,
+) -> None:
+    """Write transforms.json file from posterior sample set for rendering with iNGP.
+
+    Args:
+        tra_samples: translation samples, shape (N, M, 3)
+        rot_samples: rotation matrix samples, shape (N, M, 3, 3)
+        names: names of original query images, length (N,)
+        run_renders: how many transforms to write for rendering
+        run_path: path where the transforms.json file will be saved
+        scene_path: path where scene's original transforms.json exists
+        split_name: "train" or "valid"
+    """
+    id_digits = len(str(len(names) * num_renders))
+    render_digits = len(str(num_renders))
+    with open(scene_path / "transforms.json") as f:
+        scene_transforms = json.load(f)
+    ingp_params = {
+        "scene": scene_path.stem,
+        "num_renders": num_renders,
+        "split": split_name,
+        "camera_angle_x": scene_transforms["camera_angle_x"],
+        "frames": [
+            {
+                "query_image": name,
+                "file_path": f"{str(num_renders * j + i).zfill(id_digits)}"
+                + f"_{name[:-4]}_{str(i).zfill(render_digits)}.png",
+                "transform_matrix": transform.tolist(),
+            }
+            for j, (name, transforms) in enumerate(
+                zip(
+                    names,
+                    get_ingp_transform(
+                        tra_samples[:, :num_renders].reshape(-1, 3),
+                        rot_samples[:, :num_renders].reshape(-1, 3, 3),
+                    ).reshape(-1, num_renders, 4, 4),
+                )
+            )
+            for i, transform in enumerate(transforms)
+        ],
+    }
+    with open(run_path / "transforms.json", "w") as f:
+        json.dump(ingp_params, f, indent=4)
 
 
 def read_poses(
