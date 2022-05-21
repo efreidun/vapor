@@ -1,5 +1,6 @@
 """Script for preparing JSON file for a scene."""
 
+from types import SimpleNamespace
 import os
 from pathlib import Path
 import json
@@ -21,11 +22,7 @@ def parse_arguments() -> dict:
     """
     parser = argparse.ArgumentParser(description="Write JSON file for a scene.")
     parser.add_argument("scene", type=str)
-    parser.add_argument(
-        "--dataset_dir",
-        type=str,
-        default=str(Path.home() / "data/Ambiguous_ReLoc_Dataset"),
-    )
+    parser.add_argument("--split", type=str, nargs="+")
     args = parser.parse_args()
 
     return vars(args)
@@ -62,7 +59,8 @@ def get_frame(
 
 
 def main(config: dict) -> None:
-    dataset_path = Path(config["dataset_dir"])
+    cfg = SimpleNamespace(**config)
+    dataset_path = Path.home() / "data/Ambiguous_ReLoc_Dataset"
     with open(dataset_path / "camera.yaml") as f:
         camera_params = yaml.load(f, Loader=yaml.FullLoader)
     params = {
@@ -81,8 +79,9 @@ def main(config: dict) -> None:
     params["camera_angle_x"] = np.arctan(params["w"] / (params["fl_x"] * 2)) * 2
     params["camera_angle_y"] = np.arctan(params["h"] / (params["fl_y"] * 2)) * 2
 
-    scene_path = dataset_path / config["scene"]
-    split_paths = [scene_path / split for split in next(os.walk(scene_path))[1]]
+    scene_path = dataset_path / cfg.scene
+    split_names = cfg.split or next(os.walk(scene_path))[1]
+    split_paths = [scene_path / split for split in split_names]
     seq_paths = [
         split_path / seq
         for split_path in split_paths
@@ -100,7 +99,11 @@ def main(config: dict) -> None:
         )
     params["frames"] = frames
 
-    with open(scene_path / "transforms.json", "w") as f:
+    with open(
+        scene_path
+        / f"transforms{f'_{split_names[0]}' if len(split_names) == 1 else ''}.json",
+        "w",
+    ) as f:
         json.dump(params, f, indent=4)
 
 
