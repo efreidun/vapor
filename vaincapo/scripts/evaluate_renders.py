@@ -25,6 +25,7 @@ def parse_arguments() -> dict:
     parser.add_argument("run", type=str)
     parser.add_argument("--height", type=int)
     parser.add_argument("--width", type=int)
+    parser.add_argument("--source", type=str, default="pipeline")
     parser.add_argument("--reference", type=str, default="render")
     args = parser.parse_args()
 
@@ -34,21 +35,31 @@ def parse_arguments() -> dict:
 def main(config: dict) -> None:
     cfg = SimpleNamespace(**config)
     base_path = Path.home() / "code" / "vaincapo"
-    run_path = base_path / "runs" / cfg.run
-    with open(run_path / "config.yaml") as f:
-        train_config = yaml.load(f, Loader=yaml.FullLoader)
-    train_cfg = SimpleNamespace(**train_config)
+
+    assert cfg.source in (
+        "pipeline",
+        "bingham",
+    ), "Source has to be either 'pipeline' or 'bingham'"
+    if cfg.source == "pipeline":
+        run_path = base_path / "runs" / cfg.run
+        with open(run_path / "config.yaml") as f:
+            train_config = yaml.load(f, Loader=yaml.FullLoader)
+        scene = train_config["sequence"]
+    else:
+        run_path = base_path / "bingham_runs" / cfg.run
+        scene = "_".join(cfg.run.split("_")[:-1])
+
     assert cfg.reference in (
         "image",
         "render",
     ), "Reference has to be either 'image' or 'render'"
-    scene_path = Path.home() / "data/Ambiguous_ReLoc_Dataset" / train_cfg.sequence
+    scene_path = Path.home() / "data/Ambiguous_ReLoc_Dataset" / scene
     reference_path = (
         (scene_path / "test") if cfg.reference == "image" else scene_path / "render"
     )
+
     with open(run_path / "transforms.json") as f:
         transforms = json.load(f)
-
     renders_path = run_path / "renders"
     sample_image_paths = sorted(renders_path.glob("*.png"))
     frame_ids = [
@@ -89,7 +100,7 @@ def main(config: dict) -> None:
 
     with open(run_path / "photometrics.txt", "w") as f:
         f.write(
-            f"{cfg.run} {len(query_images)} test {train_cfg.sequence} query"
+            f"{cfg.run} {len(query_images)} test {scene} query"
             + f" {cfg.reference}s with {m} {cfg.width}x{cfg.height} renders each\n"
         )
         f.write(f"MSE: {np.mean(mses)}\n")
