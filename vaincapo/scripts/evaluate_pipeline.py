@@ -11,7 +11,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 import numpy as np
 
-from vaincapo.data import AmbiguousImages
+from vaincapo.data import AmbiguousReloc
 from vaincapo.models import Encoder, PoseMap
 from vaincapo.inference import forward_pass
 from vaincapo.utils import (
@@ -51,7 +51,7 @@ def parse_arguments() -> dict:
 def main(config: dict) -> None:
     recall_thresholds = [[0.1, 10.0], [0.2, 15.0], [0.3, 20.0], [1.0, 60.0]]
     kde_gaussian_sigmas = np.linspace(0.01, 0.50, num=100, endpoint=True)
-    kde_bingham_lambdas = np.linspace(100.0, 300.0, num=100, endpoint=True)
+    kde_bingham_lambdas = np.linspace(100.0, 400.0, num=100, endpoint=True)
     recall_min_samples = [1, 5, 10, 15, 20, 25, 50, 75, 100, 200]
 
     cfg = SimpleNamespace(**config)
@@ -68,11 +68,29 @@ def main(config: dict) -> None:
         scene_dims = read_scene_dims(scene_path)
     except FileNotFoundError:
         scene_dims = compute_scene_dims(scene_path)
-    train_set = AmbiguousImages(
-        scene_path / "train/seq00", train_cfg.image_size, train_cfg.augment
+    train_set = AmbiguousReloc(
+        scene_path / "train",
+        train_cfg.image_size,
+        train_cfg.image_mode,
+        train_cfg.image_crop,
+        train_cfg.gauss_kernel,
+        train_cfg.gauss_sigma,
+        train_cfg.jitter_brightness,
+        train_cfg.jitter_contrast,
+        train_cfg.jitter_saturation,
+        train_cfg.jitter_hue,
     )
-    valid_set = AmbiguousImages(
-        scene_path / "test/seq01", train_cfg.image_size, train_cfg.augment
+    valid_set = AmbiguousReloc(
+        scene_path / "test",
+        train_cfg.image_size,
+        train_cfg.image_mode,
+        train_cfg.image_crop,
+        train_cfg.gauss_kernel,
+        train_cfg.gauss_sigma,
+        train_cfg.jitter_brightness,
+        train_cfg.jitter_contrast,
+        train_cfg.jitter_saturation,
+        train_cfg.jitter_hue,
     )
 
     if cfg.epoch is None:
@@ -105,6 +123,7 @@ def main(config: dict) -> None:
         rots = []
         tra_hats = []
         rot_hats = []
+        names = []
         for batch in dataloader:
             tra, rot, tra_hat, rot_hat, _, _, _, _, = forward_pass(
                 encoder,
@@ -121,34 +140,43 @@ def main(config: dict) -> None:
             rots.append(rot)
             tra_hats.append(tra_hat)
             rot_hats.append(rot_hat)
+            names.extend(batch[2])
         tra = torch.cat(tras)
         tra_hat = torch.cat(tra_hats)
         rot = torch.cat(rots)
         rot_hat = torch.cat(rot_hats)
 
         if split_name == "valid":
-            query_digits = len(str(len(tra_hat)))
+            id_digits = len(str(len(split_set) * cfg.num_renders))
             render_digits = len(str(cfg.num_renders))
             with open(scene_path / "transforms.json") as f:
-                transforms = json.load(f)
+                scene_transforms = json.load(f)
             ingp_params = {
                 "scene": train_cfg.sequence,
                 "num_renders": cfg.num_renders,
                 "split": split_name,
-                "camera_angle_x": transforms["camera_angle_x"],
+                "camera_angle_x": scene_transforms["camera_angle_x"],
                 "frames": [
                     {
-                        "file_path": f"{str(query).zfill(query_digits)}_{str(i).zfill(render_digits)}.png",
+                        "query_image": name,
+                        "file_path": f"{str(cfg.num_renders * j + i).zfill(id_digits)}"
+                        + f"_{name[:-4]}_{str(i).zfill(render_digits)}.png",
                         "transform_matrix": transform.tolist(),
                     }
-                    for query, transforms in enumerate(
-                        get_ingp_transform(
-                            tra_hat[:, : cfg.num_renders].reshape(-1, 3).cpu().numpy(),
-                            rot_hat[:, : cfg.num_renders]
-                            .reshape(-1, 3, 3)
-                            .cpu()
-                            .numpy(),
-                        ).reshape(-1, cfg.num_renders, 4, 4)
+                    for j, (name, transforms) in enumerate(
+                        zip(
+                            names,
+                            get_ingp_transform(
+                                tra_hat[:, : cfg.num_renders]
+                                .reshape(-1, 3)
+                                .cpu()
+                                .numpy(),
+                                rot_hat[:, : cfg.num_renders]
+                                .reshape(-1, 3, 3)
+                                .cpu()
+                                .numpy(),
+                            ).reshape(-1, cfg.num_renders, 4, 4),
+                        )
                     )
                     for i, transform in enumerate(transforms)
                 ],

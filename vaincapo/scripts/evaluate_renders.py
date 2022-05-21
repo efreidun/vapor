@@ -40,21 +40,27 @@ def main(config: dict) -> None:
     train_cfg = SimpleNamespace(**train_config)
     with open(run_path / "transforms.json") as f:
         transforms = json.load(f)
+    valid_path = (
+        Path.home() / "data" / "Ambiguous_ReLoc_Dataset" / train_cfg.sequence / "test"
+    )
 
-    scene_path = Path.home() / "data" / "Ambiguous_ReLoc_Dataset" / train_cfg.sequence
-    query_images_path = scene_path / "test/seq01/rgb_matched"
-    query_image_paths = sorted(query_images_path.glob("*.png"))
+    renders_path = run_path / "renders"
+    sample_image_paths = sorted(renders_path.glob("*.png"))
+    frame_ids = [
+        int(str((sample_image_path.stem)).split("_")[0])
+        for sample_image_path in sample_image_paths
+    ]
     query_images = np.concatenate(
         [
             np.array(
-                Image.open(query_image_path).resize((cfg.width, cfg.height)),
+                Image.open(
+                    valid_path / transforms["frames"][frame_id]["query_image"]
+                ).resize((cfg.width, cfg.height)),
                 dtype=float,
             )[None, ...]
-            for query_image_path in query_image_paths
+            for frame_id in frame_ids
         ]
     )
-    renders_path = run_path / "renders"
-    sample_image_paths = sorted(renders_path.glob("*.png"))
     sample_images = np.concatenate(
         [
             np.array(Image.open(sample_image_path), dtype=float)[None, ...]
