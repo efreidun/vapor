@@ -20,8 +20,9 @@ def parse_arguments() -> dict:
     parser = argparse.ArgumentParser(description="Simulate mixture models.")
     parser.add_argument("run", type=str)
     parser.add_argument("--num_samples", type=int, default=1000)
-    parser.add_argument("--num_candidates", type=int, default=1000000)
-    parser.add_argument("--split", type=str, default=["train", "valid"])
+    parser.add_argument("--num_candidates", type=int, default=10000)
+    parser.add_argument("--split", type=str, nargs="+", default=["train", "valid"])
+    parser.add_argument("--device", type=str)
 
     args = parser.parse_args()
 
@@ -30,17 +31,17 @@ def parse_arguments() -> dict:
 
 def main(config: dict) -> None:
     cfg = SimpleNamespace(**config)
-    runs_path = Path.home() / "code/vaincapo/bingham_runs"
-    run_path = runs_path / cfg.run
+    device = cfg.device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    run_path = Path.home() / "code/vaincapo/bingham_runs" / cfg.run
 
-    for split in cfg.split:
-        split_path = run_path / f"{split}.npz"
+    for split_name in cfg.split:
+        split_path = run_path / f"{split_name}.npz"
         mixmod = dict(np.load(split_path))
-        tra_locs = torch.from_numpy(mixmod["tra_locs"])
-        tra_vars = torch.from_numpy(mixmod["tra_vars"])
-        rot_locs = torch.from_numpy(mixmod["rot_locs"])
-        rot_lams = torch.from_numpy(mixmod["rot_lams"])
-        coeffs = torch.from_numpy(mixmod["coeffs"])
+        tra_locs = torch.from_numpy(mixmod["tra_locs"]).to(device)
+        tra_vars = torch.from_numpy(mixmod["tra_vars"]).to(device)
+        rot_locs = torch.from_numpy(mixmod["rot_locs"]).to(device)
+        rot_lams = torch.from_numpy(mixmod["rot_lams"]).to(device)
+        coeffs = torch.from_numpy(mixmod["coeffs"]).to(device)
 
         tra_samples = []
         rot_samples = []
@@ -54,8 +55,8 @@ def main(config: dict) -> None:
             rot_samples.append(
                 rot_bmm.sample(cfg.num_samples, cfg.num_candidates)[None, :, :]
             )
-        tra_samples = torch.cat(tra_samples).numpy()
-        rot_samples = torch.cat(rot_samples).numpy()
+        tra_samples = torch.cat(tra_samples).cpu().numpy()
+        rot_samples = torch.cat(rot_samples).cpu().numpy()
 
         mixmod["tra_samples"] = tra_samples
         mixmod["rot_samples"] = rot_samples
