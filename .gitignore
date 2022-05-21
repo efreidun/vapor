@@ -133,3 +133,4 @@ dmypy.json
 runs/
 wandb/
 vaincapo/bash_scripts/save/
+bingham_runs/
