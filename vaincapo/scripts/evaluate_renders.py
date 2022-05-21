@@ -26,6 +26,7 @@ def parse_arguments() -> dict:
     parser.add_argument("--height", type=int)
     parser.add_argument("--width", type=int)
     parser.add_argument("--batch_size", type=int)
+    parser.add_argument("--reference", type=str, default="render")
     args = parser.parse_args()
 
     return vars(args)
@@ -38,11 +39,16 @@ def main(config: dict) -> None:
     with open(run_path / "config.yaml") as f:
         train_config = yaml.load(f, Loader=yaml.FullLoader)
     train_cfg = SimpleNamespace(**train_config)
+    assert cfg.reference in (
+        "image",
+        "render",
+    ), "Reference has to be either 'image' or 'render'"
+    scene_path = Path.home() / "data/Ambiguous_ReLoc_Dataset" / train_cfg.sequence
+    reference_path = (
+        (scene_path / "test") if cfg.reference == "image" else scene_path / "render"
+    )
     with open(run_path / "transforms.json") as f:
         transforms = json.load(f)
-    valid_path = (
-        Path.home() / "data/Ambiguous_ReLoc_Dataset" / train_cfg.sequence / "test"
-    )
 
     renders_path = run_path / "renders"
     sample_image_paths = sorted(renders_path.glob("*.png"))
@@ -54,7 +60,7 @@ def main(config: dict) -> None:
         [
             np.array(
                 Image.open(
-                    valid_path / transforms["frames"][frame_id]["query_image"]
+                    reference_path / transforms["frames"][frame_id]["query_image"]
                 ).resize((cfg.width, cfg.height)),
                 dtype=float,
             )[None, ...]
