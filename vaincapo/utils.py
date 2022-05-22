@@ -168,7 +168,7 @@ def read_poses(
     return seq_ids, img_ids, tvecs, rotmats
 
 
-def compute_scene_dims(scene_path: Path, margin_ratio: float = 0.2) -> np.ndarray:
+def compute_scene_dims(scene_path: Path, margin_ratio: float = 0.2) -> torch.Tensor:
     """Compute scene dimensions and write them onto text file.
 
     Args:
@@ -195,7 +195,7 @@ def compute_scene_dims(scene_path: Path, margin_ratio: float = 0.2) -> np.ndarra
     return torch.tensor(np.vstack((mins, maxs, margins)))
 
 
-def read_scene_dims(scene_path: Path) -> np.ndarray:
+def read_scene_dims(scene_path: Path) -> torch.Tensor:
     """Read scene dimensions from text file.
 
     Args:
