@@ -6,13 +6,141 @@ from pathlib import Path
 import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
-import matplotlib.colors as clrs
-import matplotlib.cm as cmx
 from matplotlib.patches import Circle
 from matplotlib.gridspec import GridSpec, SubplotSpec
 import open3d as o3d
 
 from vaincapo.utils import quat_to_hopf, read_scene_dims
+
+
+def plot_posterior(
+    query_image: np.ndarray,
+    tra_samples: np.ndarray,
+    quat_samples: np.ndarray,
+    num_samples: int,
+    scene_path: Path,
+    title: Optional[str],
+    query_render: Optional[np.ndarray] = None,
+    sample_renders: Optional[np.ndarray] = None,
+    tra_gt: Optional[np.ndarray] = None,
+    quat_gt: Optional[np.ndarray] = None,
+    save: Optional[Union[Path, str]] = None,
+) -> plt.Figure:
+    """Plot many samples drawn from a posterior distribution.
+
+    Args:
+        query_image: query image, shape (H, W, 3)
+        tra_samples: translation samples , shape (N, 3)
+        quat_samples: rotation samples in quaternion [w, x, y, z], shape (N, 4)
+        num_samples: number of samples to show individually, maximum 13
+        scene_path: path to the scene that contains camera.json and mesh.ply
+        title: title of figure
+        query_render: NeRF render of the query image, shape (H, W, 3)
+        sample_renders: NeRF rendesr of the samples, shape (M, H, W, 3)
+        tra_gt: groundtruth translation, shape (3,)
+        quat_gt: groundtruth rotation in quaternion [w, x, y, z], shape (4,)
+        save: save path including file extension
+
+    Returns:
+        figure instance
+    """
+    scene_dims = read_scene_dims(scene_path)
+    markers = ["o", "+", "x", "*", ".", "X", "p", "h", "D", "d", "^", "v", "s"]
+
+    fig = plt.figure(figsize=(20, 10))
+    fig.suptitle(title)
+    r = [0, 40, 80]
+    c = [0, 33, 66]
+    w = 25
+    h = 35
+    cb_o = 1
+    cb_w = 1
+    cw_o = 1
+    cw_w = 4
+    grid_spec = GridSpec(
+        r[1] + h if (query_render is None and sample_renders is None) else 100, 100
+    )
+
+    # first row of subplots, query image and posterior samples
+    show_image(
+        fig,
+        grid_spec[r[0] : r[0] + h, c[0] : c[0] + w],
+        "query image",
+        query_image,
+    )
+    plot_tras_on_plane(
+        fig,
+        grid_spec[r[0] : r[0] + h, c[1] : c[1] + w],
+        "translations posterior",
+        scene_dims,
+        tra_samples,
+        tra_gt[None, :],
+        None,
+        grid_spec[r[0] : r[0] + h, c[1] + w + cb_o : c[1] + w + cb_o + cb_w],
+    )
+    plot_rots_on_plane(
+        fig,
+        grid_spec[r[0] : r[0] + h, c[2] : c[2] + w],
+        "rotation posterior",
+        quat_samples,
+        quat_gt[None, :],
+        None,
+        grid_spec[r[0] : r[0] + h, c[2] + w + cw_o : c[2] + w + cw_o + cw_w],
+    )
+
+    # second row of subplots, projecive view and individual samples
+    render = render_3d(
+        scene_path,
+        tra_samples[:num_samples],
+        quat_samples[:num_samples],
+        tra_gt,
+        quat_gt,
+    )
+    show_image(
+        fig,
+        grid_spec[r[1] : r[1] + h, c[0] : c[0] + w],
+        "samples from posterior",
+        render,
+    )
+    plot_tras_on_plane(
+        fig,
+        grid_spec[r[1] : r[1] + h, c[1] : c[1] + w],
+        "translations samples",
+        scene_dims,
+        tra_samples[:num_samples],
+        tra_gt[None, :],
+        markers,
+        grid_spec[r[1] : r[1] + h, c[1] + w + cb_o : c[1] + w + cb_o + cb_w],
+    )
+    plot_rots_on_plane(
+        fig,
+        grid_spec[r[1] : r[1] + h, c[2] : c[2] + w],
+        "rotation samples",
+        quat_samples[:num_samples],
+        quat_gt[None, :],
+        markers,
+        grid_spec[r[1] : r[1] + h, c[2] + w + cw_o : c[2] + w + cw_o + cw_w],
+    )
+
+    # third row of subplots, renders of query image and samples
+    if query_render is not None and sample_renders is not None:
+        assert len(markers) >= len(
+            sample_renders
+        ), "Must have as many markers as renders"
+        renders = np.concatenate((query_render[None, ...], sample_renders))
+        ren_w = 100 // len(renders)
+        for i, render in enumerate(renders):
+            show_image(
+                fig,
+                grid_spec[r[2] :, c[0] + i * ren_w : c[0] + (i + 1) * ren_w],
+                "query render" if i == 0 else f"render {markers[i-1]}",
+                render,
+            )
+
+    if save is not None:
+        fig.savefig(save)
+
+    return fig
 
 
 def render_3d(
@@ -69,99 +197,6 @@ def render_3d(
     return np.array(vis.capture_screen_float_buffer(do_render=True))
 
 
-def plot_posterior(
-    query_id: int,
-    image: np.ndarray,
-    tra_samples: np.ndarray,
-    quat_samples: np.ndarray,
-    num_samples: int,
-    scene_path: Path,
-    tra_gt: Optional[np.ndarray] = None,
-    quat_gt: Optional[np.ndarray] = None,
-    save: Optional[Union[Path, str]] = None,
-) -> plt.Figure:
-    """Plot many samples drawn from a posterior distribution.
-
-    Args:
-        query_id: id of the query image
-        image: query image, shape (H, W, 3)
-        tra_samples: translation samples , shape (N, 3)
-        quat_samples: rotation samples in quaternion [w, x, y, z], shape (N, 4)
-        num_samples: number of samples to draw explicitly, maximum 13
-        scene_path: path to the scene that contains camera.json and mesh.ply
-        tra_gt: groundtruth translation, shape (3,)
-        quat_gt: groundtruth rotation in quaternion [w, x, y, z], shape (4,)
-        save: save path including file extension
-
-    Returns:
-        figure instance
-    """
-    scene_dims = read_scene_dims(scene_path)
-    tra_mins = scene_dims[0] - scene_dims[2]
-    tra_maxs = scene_dims[1] + scene_dims[2]
-
-    s1_cm = cmx.ScalarMappable(
-        norm=clrs.Normalize(vmin=0, vmax=2 * np.pi), cmap=plt.get_cmap("hsv")
-    )
-    z_cm = cmx.ScalarMappable(
-        norm=clrs.Normalize(vmin=tra_mins[2], vmax=tra_maxs[2]),
-        cmap=plt.get_cmap("plasma"),
-    )
-
-    fig = plt.figure(figsize=(20, 10))
-    grid_spec = GridSpec(100, 100)
-
-    show_image(fig, grid_spec[0:25, 0:25], f"query image {query_id}", image)
-
-    render = render_3d(
-        scene_path,
-        tra_samples[:num_samples],
-        quat_samples[:num_samples],
-        tra_gt,
-        quat_gt,
-    )
-    show_image(fig, grid_spec[30:55, 0:25], "samples from posterior", render)
-
-    plot_tras_on_plane(
-        fig,
-        grid_spec[0:25, 30:55],
-        "translations posterior",
-        scene_dims,
-        tra_samples,
-        tra_gt[None, :],
-        None,
-        grid_spec[0:25, 55:56],
-    )
-    # plot_rots_on_plane(fig, 233, "rotation posterior", quat_samples, quat_gt[None, :])
-
-    markers = ["o", "+", "x", "*", ".", "X", "p", "h", "D", "d", "^", "v", "s"]
-
-    plot_tras_on_plane(
-        fig,
-        grid_spec[30:55, 30:55],
-        "translations samples",
-        scene_dims,
-        tra_samples[:num_samples],
-        tra_gt[None, :],
-        markers,
-        grid_spec[30:55, 55:56],
-    )
-
-    # plot_rots_on_plane(
-    #     fig,
-    #     236,
-    #     "rotation samples",
-    #     quat_samples[:num_samples],
-    #     quat_gt[None, :],
-    #     markers,
-    # )
-
-    if save is not None:
-        fig.savefig(save)
-
-    return fig
-
-
 def show_image(
     figure: plt.Figure, position: SubplotSpec, title: str, image: np.ndarray
 ) -> None:
@@ -211,15 +246,15 @@ def plot_tras_on_plane(
 
     cmap = mpl.cm.plasma
     norm = mpl.colors.Normalize(vmin=tra_mins[2], vmax=tra_maxs[2])
-    z_cm = cmx.ScalarMappable(norm=norm, cmap=cmap)
+    z_cm = mpl.cm.ScalarMappable(norm=norm, cmap=cmap)
 
     ax = figure.add_subplot(position)
     ax.set_xlim([tra_mins[0], tra_maxs[0]])
     ax.set_ylim([tra_mins[1], tra_maxs[1]])
     ax.set_aspect("equal")
     ax.set_title(title)
-    ax.set_xlabel("x")
-    ax.set_ylabel("y")
+    ax.set_xticks([])
+    ax.set_yticks([])
     if tra_gt is not None:
         for tra in tra_gt:
             ax.add_patch(
@@ -241,7 +276,7 @@ def plot_tras_on_plane(
     if cm_position is not None:
         cm_ax = figure.add_subplot(cm_position)
         mpl.colorbar.ColorbarBase(cm_ax, cmap=cmap, norm=norm)
-        cm_ax.set_ylabel("z")
+        cm_ax.set_axis_off()
 
 
 def plot_rots_on_plane(
@@ -251,6 +286,7 @@ def plot_rots_on_plane(
     quat_samples: np.ndarray,
     quat_gt: Optional[np.ndarray] = None,
     markers: Optional[Iterable[str]] = None,
+    cm_position: Optional[SubplotSpec] = None,
 ) -> None:
     """Plot rotation samples on a 2D plane.
 
@@ -265,10 +301,11 @@ def plot_rots_on_plane(
         quat_samples: samples to be plotted in quaternions [w, x, y, z], shape (N, 4)
         quat_gt: groundtruth quaternions [w, x, y, z] plotted as circles, shape (M, 4)
         markers: marks to be used for individual samples
+        cm_position: colorbar position on the figure
     """
-    s1_cm = cmx.ScalarMappable(
-        norm=clrs.Normalize(vmin=0, vmax=2 * np.pi), cmap=plt.get_cmap("hsv")
-    )
+    cmap = mpl.cm.hsv
+    norm = mpl.colors.Normalize(vmin=0, vmax=2 * np.pi)
+    s1_cm = mpl.cm.ScalarMappable(norm=norm, cmap=cmap)
 
     ax = figure.add_subplot(position, projection="mollweide")
     ax.grid(True)
@@ -296,3 +333,12 @@ def plot_rots_on_plane(
             hopf_samples, markers[: len(hopf_samples)]
         ):
             ax.scatter(phi, theta, s=50, color=s1_cm.to_rgba(psi), marker=marker)
+
+    if cm_position is not None:
+        cm_ax = figure.add_subplot(cm_position, projection="polar")
+        cb = mpl.colorbar.ColorbarBase(
+            cm_ax, cmap=cmap, norm=norm, orientation="horizontal"
+        )
+        cb.outline.set_visible(False)
+        cm_ax.set_axis_off()
+        cm_ax.set_rlim([-1, 1])
