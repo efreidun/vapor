@@ -8,9 +8,10 @@ import matplotlib.pyplot as plt
 import matplotlib.colors as clrs
 import matplotlib.cm as cmx
 from matplotlib.patches import Circle
+from matplotlib.gridspec import GridSpec
 import open3d as o3d
 
-from vaincapo.utils import quat_to_hopf
+from vaincapo.utils import quat_to_hopf, read_scene_dims
 
 
 def render_3d(
@@ -72,8 +73,6 @@ def plot_posterior(
     image: np.ndarray,
     tra_samples: np.ndarray,
     quat_samples: np.ndarray,
-    tra_mins: Iterable[float],
-    tra_maxs: Iterable[float],
     num_samples: int,
     scene_path: Path,
     tra_gt: Optional[np.ndarray] = None,
@@ -87,8 +86,6 @@ def plot_posterior(
         image: query image, shape (H, W, 3)
         tra_samples: translation samples , shape (N, 3)
         quat_samples: rotation samples in quaternion [w, x, y, z], shape (N, 4)
-        tra_mins: minimum boundaries of translations, shape (3,)
-        tra_maxs: maximum boundaries of translations, shape (3,)
         num_samples: number of samples to draw explicitly, maximum 13
         scene_path: path to the scene that contains camera.json and mesh.ply
         tra_gt: groundtruth translation, shape (3,)
@@ -98,6 +95,10 @@ def plot_posterior(
     Returns:
         figure instance
     """
+    scene_dims = read_scene_dims(scene_path)
+    tra_mins = scene_dims[0] - scene_dims[2]
+    tra_maxs = scene_dims[1] + scene_dims[2]
+
     s1_cm = cmx.ScalarMappable(
         norm=clrs.Normalize(vmin=0, vmax=2 * np.pi), cmap=plt.get_cmap("hsv")
     )
@@ -107,6 +108,7 @@ def plot_posterior(
     )
 
     fig = plt.figure(figsize=(20, 10))
+    # grid_spec = GridSpec(100, 100)
 
     image_ax = fig.add_subplot(231)
     image_ax.imshow(image)
@@ -144,22 +146,7 @@ def plot_posterior(
         )
     tra_ax.scatter(*tra_samples.T[:2], s=2, color=z_cm.to_rgba(tra_samples.T[2]))
 
-    rot_ax = fig.add_subplot(233, projection="mollweide")
-    rot_ax.grid(True)
-    rot_ax.set_title("rotation posterior")
-    if quat_gt is not None:
-        hopf_gt = quat_to_hopf(quat_gt[None, :])[0]
-        rot_ax.add_patch(
-            Circle(
-                xy=hopf_gt[:2],
-                radius=0.2,
-                linewidth=2,
-                facecolor="none",
-                edgecolor=s1_cm.to_rgba(hopf_gt[2]),
-            )
-        )
-    hopf_samples = quat_to_hopf(quat_samples)
-    rot_ax.scatter(*hopf_samples.T[:2], s=2, color=s1_cm.to_rgba(hopf_samples.T[2]))
+    plot_rots_on_plane(fig, 233, "rotation posterior", quat_samples, quat_gt[None, :])
 
     markers = ["o", "+", "x", "*", ".", "X", "p", "h", "D", "d", "^", "v", "s"]
 
@@ -184,29 +171,18 @@ def plot_posterior(
     ):
         tra_samp_ax.scatter(x, y, s=50, color=z_cm.to_rgba(z), marker=marker)
 
-    rot_samp_ax = fig.add_subplot(236, projection="mollweide")
-    rot_samp_ax.grid(True)
-    rot_samp_ax.set_title("rotation samples")
-    if quat_gt is not None:
-        rot_samp_ax.add_patch(
-            Circle(
-                xy=hopf_gt[:2],
-                radius=0.2,
-                linewidth=2,
-                facecolor="none",
-                edgecolor=s1_cm.to_rgba(hopf_gt[2]),
-            )
-        )
-    for (phi, theta, psi), marker in zip(
-        hopf_samples[:num_samples],
+    plot_rots_on_plane(
+        fig,
+        236,
+        "rotation samples",
+        quat_samples[:num_samples],
+        quat_gt[None, :],
         markers[:num_samples],
-    ):
-        rot_samp_ax.scatter(phi, theta, s=50, color=s1_cm.to_rgba(psi), marker=marker)
+    )
 
     if save is not None:
         fig.savefig(save)
 
-    # plt.show()
     return fig
 
 
@@ -216,6 +192,7 @@ def plot_rots_on_plane(
     title: str,
     quat_samples: np.ndarray,
     quat_gt: Optional[np.ndarray] = None,
+    markers: Optional[Iterable[str]] = None,
 ) -> None:
     """Plot rotation samples on a 2D plane.
 
@@ -229,6 +206,7 @@ def plot_rots_on_plane(
         title: title of the subplot
         quat_samples: samples to be plotted in quaternions [w, x, y, z], shape (N, 4)
         quat_gt: groundtruth quaternions [w, x, y, z] plotted as circles, shape (M, 4)
+        markers: marks to be used for individual samples
     """
     s1_cm = cmx.ScalarMappable(
         norm=clrs.Normalize(vmin=0, vmax=2 * np.pi), cmap=plt.get_cmap("hsv")
@@ -250,4 +228,9 @@ def plot_rots_on_plane(
                 )
             )
     hopf_samples = quat_to_hopf(quat_samples)
-    rot_ax.scatter(*hopf_samples.T[:2], s=2, color=s1_cm.to_rgba(hopf_samples.T[2]))
+    if markers is None:
+        rot_ax.scatter(*hopf_samples.T[:2], s=2, color=s1_cm.to_rgba(hopf_samples.T[2]))
+    else:
+        assert len(markers) == len(hopf_samples), "Must have as many markers as samples"
+        for (phi, theta, psi), marker in zip(hopf_samples, markers):
+            rot_ax.scatter(phi, theta, s=50, color=s1_cm.to_rgba(psi), marker=marker)
