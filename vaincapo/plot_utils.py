@@ -23,13 +23,15 @@ def render_3d(
     """Render a projective image of the scene with samples.
 
     Args:
-        scene_path: path to the scene that contains camera.json and mesh.ply
+        scene_path: path to the scene that contains vis_camera.json and mesh.ply
         tra_samples: translation samples , shape (N, 3)
         quat_samples: rotation samples in quaternion [w, x, y, z], shape (N, 4)
         tra_gt: groundtruth translation, shape (3,)
         quat_gt: groundtruth rotation in quaternion [w, x, y, z], shape (4,)
     """
-    vis_camera = o3d.io.read_pinhole_camera_parameters(str(scene_path / "camera.json"))
+    vis_camera = o3d.io.read_pinhole_camera_parameters(
+        str(scene_path / "vis_camera.json")
+    )
     vis = o3d.visualization.Visualizer()
     vis.create_window(
         width=vis_camera.intrinsic.width,
