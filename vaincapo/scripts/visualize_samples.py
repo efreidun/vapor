@@ -9,7 +9,7 @@ import numpy as np
 import argparse
 from tqdm import tqdm
 
-from vaincapo.utils import read_rendered_samples
+from vaincapo.read_write import read_rendered_samples
 from vaincapo.plot_utils import plot_posterior
 
 

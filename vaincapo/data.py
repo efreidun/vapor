@@ -19,7 +19,7 @@ from torchvision.transforms import (
 )
 from tqdm import tqdm
 
-from vaincapo.utils import read_poses
+from vaincapo.read_write import read_poses
 
 
 class AmbiguousReloc(Dataset):

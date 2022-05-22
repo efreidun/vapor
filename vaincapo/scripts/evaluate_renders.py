@@ -3,16 +3,14 @@
 from pathlib import Path
 from types import SimpleNamespace
 import yaml
-import json
 
-from PIL import Image
 import argparse
 import numpy as np
 from skimage.metrics import structural_similarity as ssim
 from skimage.metrics import mean_squared_error as mse
 from tqdm import tqdm
 
-from vaincapo.utils import read_rendered_samples
+from vaincapo.read_write import read_rendered_samples
 
 
 def parse_arguments() -> dict:

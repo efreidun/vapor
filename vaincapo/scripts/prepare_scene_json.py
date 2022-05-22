@@ -11,7 +11,8 @@ import cv2
 import numpy as np
 from tqdm import tqdm
 
-from vaincapo.utils import read_poses, get_ingp_transform
+from vaincapo.utils import get_ingp_transform
+from vaincapo.read_write import read_poses
 
 
 def parse_arguments() -> dict:

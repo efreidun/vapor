@@ -14,12 +14,8 @@ import wandb
 
 from vaincapo.data import AmbiguousReloc
 from vaincapo.models import Encoder, PoseMap
-from vaincapo.utils import (
-    read_scene_dims,
-    compute_scene_dims,
-    schedule_warmup,
-    rotmat_to_quat,
-)
+from vaincapo.read_write import read_scene_dims, compute_scene_dims
+from vaincapo.utils import schedule_warmup, rotmat_to_quat
 from vaincapo.inference import forward_pass
 from vaincapo.losses import chordal_to_geodesic
 from vaincapo.evaluation import (

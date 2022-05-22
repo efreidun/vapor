@@ -8,7 +8,8 @@ import numpy as np
 import torch
 from tqdm import tqdm
 
-from vaincapo.utils import quat_to_rotmat, write_sample_transforms, write_metrics
+from vaincapo.read_write import write_sample_transforms, write_metrics
+from vaincapo.utils import quat_to_rotmat
 from vaincapo.evaluation import (
     evaluate_tras_likelihood,
     evaluate_rots_likelihood,

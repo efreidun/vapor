@@ -13,12 +13,12 @@ import numpy as np
 from vaincapo.data import AmbiguousReloc
 from vaincapo.models import Encoder, PoseMap
 from vaincapo.inference import forward_pass
-from vaincapo.utils import (
+from vaincapo.utils import rotmat_to_quat
+from vaincapo.read_write import (
     write_metrics,
     write_sample_transforms,
     read_scene_dims,
     compute_scene_dims,
-    rotmat_to_quat,
 )
 from vaincapo.evaluation import (
     evaluate_tras_likelihood,
@@ -155,7 +155,7 @@ def main(config: dict) -> None:
             rot_gt=rot_quat,
             tra_samples=tra_hat.cpu().numpy(),
             rot_samples=rot_quat_hat,
-            names=names
+            names=names,
         )
         rot_quat = torch.from_numpy(rot_quat)
         rot_quat_hat = torch.from_numpy(rot_quat_hat)

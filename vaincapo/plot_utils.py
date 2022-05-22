@@ -10,7 +10,8 @@ from matplotlib.patches import Circle
 from matplotlib.gridspec import GridSpec, SubplotSpec
 import open3d as o3d
 
-from vaincapo.utils import quat_to_hopf, read_scene_dims
+from vaincapo.utils import quat_to_hopf
+from vaincapo.read_write import read_scene_dims
 
 
 def plot_posterior(
@@ -138,6 +139,7 @@ def plot_posterior(
             )
 
     if save is not None:
+        print(f"Saving plot at: {save}")
         fig.savefig(save)
 
     return fig
