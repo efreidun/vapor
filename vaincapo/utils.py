@@ -15,7 +15,7 @@ def read_rendered_samples(
     renders_path: Path,
     query_images_path: Path,
     query_renders_path: Path,
-    resize: Tuple[int, int],
+    resize: Optional[Tuple[int, int]] = None,
 ) -> Tuple[np.ndarray, np.ndarray]:
     """Read saved renders of samples and their corresponding query images.
 
@@ -24,7 +24,9 @@ def read_rendered_samples(
         renders_path: directory where the renders are saved
         query_images_path: directory of the original query images
         query_renders_path: directory of the rendered query images
-        resize: (width, height), to which the query images are resized
+        resize:
+            (width, height), to which the query images/renders are resized,
+            if not set, they are resized to sample render size
 
     Returns:
         rendered samples, shape (N, M, H, W, 3) for N query images and M samples,
@@ -45,6 +47,8 @@ def read_rendered_samples(
         ]
     )[:, :, :, :3]
     im_h, im_w = sample_renders.shape[1:3]
+    if resize is None:
+        resize = (im_w, im_h)
     sample_renders = sample_renders.reshape(-1, num_renders, im_h, im_w, 3)
     query_images, query_renders = (
         np.concatenate(

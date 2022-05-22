@@ -22,7 +22,7 @@ def parse_arguments() -> dict:
     """
     parser = argparse.ArgumentParser(description="Write JSON file for a scene.")
     parser.add_argument("scene", type=str)
-    parser.add_argument("--split", type=str, nargs="+")
+    parser.add_argument("--split", type=str, nargs="+", default=["train", "test"])
     args = parser.parse_args()
 
     return vars(args)
@@ -80,7 +80,7 @@ def main(config: dict) -> None:
     params["camera_angle_y"] = np.arctan(params["h"] / (params["fl_y"] * 2)) * 2
 
     scene_path = dataset_path / cfg.scene
-    split_names = cfg.split or ["train", "test"]
+    split_names = cfg.split
     split_paths = [scene_path / split for split in split_names]
     seq_paths = [
         split_path / seq

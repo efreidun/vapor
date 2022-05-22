@@ -1,4 +1,4 @@
-"""Script evaluating saved samples."""
+"""Script that evaluates saved samples."""
 
 from pathlib import Path
 from types import SimpleNamespace

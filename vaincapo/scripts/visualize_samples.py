@@ -3,12 +3,13 @@
 from pathlib import Path
 from types import SimpleNamespace
 import yaml
-import json
 
 from PIL import Image
 import numpy as np
 import argparse
+from tqdm import tqdm
 
+from vaincapo.utils import read_rendered_samples
 from vaincapo.plot_utils import plot_posterior
 
 
@@ -24,7 +25,8 @@ def parse_arguments() -> dict:
     parser.add_argument("run", type=str)
     parser.add_argument("--num_samples", type=int, default=10)
     parser.add_argument("--source", type=str, default="pipeline")
-    parser.add_argument("--split", type=str, nargs="+")
+    parser.add_argument("--query", type=int, nargs="+")
+    parser.add_argument("--split", type=str, nargs="+", default=["valid"])
     args = parser.parse_args()
 
     return vars(args)
@@ -47,54 +49,41 @@ def main(config: dict) -> None:
         run_path = base_path / "bingham_runs" / cfg.run
         scene = "_".join(cfg.run.split("_")[:-1])
     scene_path = dataset_path / scene
-    reference_path = scene_path / "renders/test"
-    with open(run_path / "transforms.json") as f:
-        transforms = json.load(f)
-    renders_path = run_path / "renders"
-    sample_image_paths = sorted(renders_path.glob("**/*.png"))
-    frame_ids = [
-        int(str((sample_image_path.stem)).split("_")[0])
-        for sample_image_path in sample_image_paths
-    ]
-    m = transforms["num_renders"]
-    query_renders = np.concatenate(
-        [
-            np.array(
-                Image.open(
-                    reference_path / transforms["frames"][frame_id]["query_image"]
-                ),
-            )[None, ...]
-            for frame_id in frame_ids[::m]
-        ]
-    )[:, :, :, :3]
-    sample_renders = np.concatenate(
-        [
-            np.array(Image.open(sample_image_path))[None, ...]
-            for sample_image_path in sample_image_paths
-        ]
-    )[:, :, :, :3]
-    im_h, im_w = sample_renders.shape[1:3]
-    sample_renders = sample_renders.reshape(-1, m, im_h, im_w, 3)
+    plots_path = run_path / "plots"
 
-    data = np.load(run_path / "valid.npz")
+    for split in cfg.split:
+        data = np.load(run_path / f"{split}.npz")
+        if split == "valid":
+            sample_renders, query_images, query_renders = read_rendered_samples(
+                run_path / "transforms.json",
+                run_path / "renders",
+                scene_path / "test",
+                scene_path / "renders/test",
+            )
 
-    q = 0
-    query_image_path = scene_path / "test" / data["names"][q]
-    image = np.array(Image.open(scene_path / "test" / data["names"][q]))
-    query_name = str(query_image_path.relative_to(dataset_path).with_suffix(""))
-    plot_posterior(
-        image,
-        data["tra_samples"][q],
-        data["rot_samples"][q],
-        cfg.num_samples,
-        scene_path,
-        query_name,
-        query_renders[q],
-        sample_renders[q],
-        data["tra_gt"][q],
-        data["rot_gt"][q],
-        Path.home() / "Desktop/figoor.png",
-    )
+        queries = cfg.query or range(len(query_images))
+        for i in tqdm(queries):
+            name_with_split = (
+                f"{'test' if split == 'valid' else 'train'}/" + data["names"][i]
+            )
+            query_file_name = scene + "/" + name_with_split
+            plot_path = plots_path / name_with_split
+            plot_path.parent.mkdir(parents=True, exist_ok=True)
+            plot_posterior(
+                query_images[i]
+                if split == "valid"
+                else np.array(Image.open(dataset_path / query_file_name)),
+                data["tra_samples"][i],
+                data["rot_samples"][i],
+                cfg.num_samples,
+                scene_path,
+                cfg.run + " : " + query_file_name[:-4],
+                query_renders[i] if split == "valid" else None,
+                sample_renders[i] if split == "valid" else None,
+                data["tra_gt"][i],
+                data["rot_gt"][i],
+                plot_path,
+            )
 
 
 if __name__ == "__main__":

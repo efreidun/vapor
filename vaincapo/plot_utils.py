@@ -260,7 +260,7 @@ def plot_tras_on_plane(
             ax.add_patch(
                 Circle(
                     xy=tra[:2],
-                    radius=0.2,
+                    radius=0.1,
                     linewidth=2,
                     facecolor="none",
                     edgecolor=z_cm.to_rgba(tra[2]),

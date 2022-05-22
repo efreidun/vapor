@@ -155,6 +155,7 @@ def main(config: dict) -> None:
             rot_gt=rot_quat,
             tra_samples=tra_hat.cpu().numpy(),
             rot_samples=rot_quat_hat,
+            names=names
         )
         rot_quat = torch.from_numpy(rot_quat)
         rot_quat_hat = torch.from_numpy(rot_quat_hat)
