@@ -80,7 +80,7 @@ def main(config: dict) -> None:
     params["camera_angle_y"] = np.arctan(params["h"] / (params["fl_y"] * 2)) * 2
 
     scene_path = dataset_path / cfg.scene
-    split_names = cfg.split or next(os.walk(scene_path))[1]
+    split_names = cfg.split or ["train", "test"]
     split_paths = [scene_path / split for split in split_names]
     seq_paths = [
         split_path / seq
