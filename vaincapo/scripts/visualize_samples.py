@@ -10,7 +10,7 @@ import argparse
 from tqdm import tqdm
 
 from vaincapo.read_write import read_rendered_samples
-from vaincapo.plot_utils import plot_posterior
+from vaincapo.plotting import plot_posterior
 
 
 def parse_arguments() -> dict:
