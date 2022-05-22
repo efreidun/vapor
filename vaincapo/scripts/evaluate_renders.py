@@ -55,17 +55,20 @@ def main(config: dict) -> None:
     ), "Reference has to be either 'image' or 'render'"
     scene_path = Path.home() / "data/Ambiguous_ReLoc_Dataset" / scene
     reference_path = (
-        (scene_path / "test") if cfg.reference == "image" else scene_path / "render"
+        (scene_path / "test")
+        if cfg.reference == "image"
+        else scene_path / "renders/test"
     )
 
     with open(run_path / "transforms.json") as f:
         transforms = json.load(f)
     renders_path = run_path / "renders"
-    sample_image_paths = sorted(renders_path.glob("*.png"))
+    sample_image_paths = sorted(renders_path.glob("**/*.png"))
     frame_ids = [
         int(str((sample_image_path.stem)).split("_")[0])
         for sample_image_path in sample_image_paths
     ]
+    m = transforms["num_renders"]
     query_images = np.concatenate(
         [
             np.array(
@@ -74,9 +77,9 @@ def main(config: dict) -> None:
                 ).resize((cfg.width, cfg.height)),
                 dtype=float,
             )[None, ...]
-            for frame_id in frame_ids
+            for frame_id in frame_ids[::m]
         ]
-    )
+    )[:, :, :, :3]
     sample_images = np.concatenate(
         [
             np.array(Image.open(sample_image_path), dtype=float)[None, ...]
@@ -85,7 +88,6 @@ def main(config: dict) -> None:
     )[:, :, :, :3]
     q = len(query_images)
     n, im_h, im_w = sample_images.shape[:3]
-    m = transforms["num_renders"]
     assert q == n // m, "number of query images and produced sample sets must be equal"
     sample_images = sample_images.reshape(q, m, im_h, im_w, 3)
 
