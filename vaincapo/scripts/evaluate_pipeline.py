@@ -145,10 +145,19 @@ def main(config: dict) -> None:
         rot = torch.cat(rots)
         rot_hat = torch.cat(rot_hats)
 
-        rot_quat = torch.tensor(rotmat_to_quat(rot.cpu().numpy()))
-        rot_quat_hat = torch.tensor(
-            rotmat_to_quat(rot_hat.reshape(-1, 3, 3).cpu().numpy())
-        ).reshape(*rot_hat.shape[:2], 4)
+        rot_quat = rotmat_to_quat(rot.cpu().numpy())
+        rot_quat_hat = rotmat_to_quat(rot_hat.reshape(-1, 3, 3).cpu().numpy()).reshape(
+            *rot_hat.shape[:2], 4
+        )
+        np.savez(
+            run_path / f"{split_name}.npz",
+            tra_gt=tra.cpu().numpy(),
+            rot_gt=rot_quat,
+            tra_samples=tra_hat.cpu().numpy(),
+            rot_samples=rot_quat_hat,
+        )
+        rot_quat = torch.from_numpy(rot_quat)
+        rot_quat_hat = torch.from_numpy(rot_quat_hat)
 
         recalls.append(
             [
