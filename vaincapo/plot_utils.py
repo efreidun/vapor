@@ -4,11 +4,12 @@ from typing import Optional, Iterable, Union
 from pathlib import Path
 
 import numpy as np
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 import matplotlib.colors as clrs
 import matplotlib.cm as cmx
 from matplotlib.patches import Circle
-from matplotlib.gridspec import GridSpec
+from matplotlib.gridspec import GridSpec, SubplotSpec
 import open3d as o3d
 
 from vaincapo.utils import quat_to_hopf, read_scene_dims
@@ -108,15 +109,10 @@ def plot_posterior(
     )
 
     fig = plt.figure(figsize=(20, 10))
-    # grid_spec = GridSpec(100, 100)
+    grid_spec = GridSpec(100, 100)
 
-    image_ax = fig.add_subplot(231)
-    image_ax.imshow(image)
-    image_ax.set_xticks([])
-    image_ax.set_yticks([])
-    image_ax.set_title(f"query image {query_id}")
+    show_image(fig, grid_spec[0:25, 0:25], f"query image {query_id}", image)
 
-    render_ax = fig.add_subplot(234)
     render = render_3d(
         scene_path,
         tra_samples[:num_samples],
@@ -124,41 +120,41 @@ def plot_posterior(
         tra_gt,
         quat_gt,
     )
-    render_ax.imshow(render)
-    render_ax.set_xticks([])
-    render_ax.set_yticks([])
-    render_ax.set_title("samples from posterior")
+    show_image(fig, grid_spec[30:55, 0:25], "samples from posterior", render)
 
     plot_tras_on_plane(
         fig,
-        232,
-        "translations posterior2",
+        grid_spec[0:25, 30:55],
+        "translations posterior",
         scene_dims,
         tra_samples,
         tra_gt[None, :],
+        None,
+        grid_spec[0:25, 55:56],
     )
-    plot_rots_on_plane(fig, 233, "rotation posterior", quat_samples, quat_gt[None, :])
+    # plot_rots_on_plane(fig, 233, "rotation posterior", quat_samples, quat_gt[None, :])
 
     markers = ["o", "+", "x", "*", ".", "X", "p", "h", "D", "d", "^", "v", "s"]
 
     plot_tras_on_plane(
         fig,
-        235,
-        "translations samples2",
+        grid_spec[30:55, 30:55],
+        "translations samples",
         scene_dims,
         tra_samples[:num_samples],
         tra_gt[None, :],
         markers,
+        grid_spec[30:55, 55:56],
     )
 
-    plot_rots_on_plane(
-        fig,
-        236,
-        "rotation samples",
-        quat_samples[:num_samples],
-        quat_gt[None, :],
-        markers,
-    )
+    # plot_rots_on_plane(
+    #     fig,
+    #     236,
+    #     "rotation samples",
+    #     quat_samples[:num_samples],
+    #     quat_gt[None, :],
+    #     markers,
+    # )
 
     if save is not None:
         fig.savefig(save)
@@ -166,14 +162,33 @@ def plot_posterior(
     return fig
 
 
+def show_image(
+    figure: plt.Figure, position: SubplotSpec, title: str, image: np.ndarray
+) -> None:
+    """Plot an image.
+
+    Args:
+        figure: figure instance on which plot is made in-place
+        position: subplot position on the figure
+        title: title of the subplot
+        image: image array, shape (H, W, 3)
+    """
+    ax = figure.add_subplot(position)
+    ax.imshow(image)
+    ax.set_xticks([])
+    ax.set_yticks([])
+    ax.set_title(title)
+
+
 def plot_tras_on_plane(
     figure: plt.Figure,
-    position: int,
+    position: SubplotSpec,
     title: str,
     scene_dims: np.ndarray,
     tra_samples: np.ndarray,
     tra_gt: Optional[np.ndarray] = None,
     markers: Optional[Iterable[str]] = None,
+    cm_position: Optional[SubplotSpec] = None,
 ) -> None:
     """Plot rotation samples on a 2D plane.
 
@@ -189,20 +204,22 @@ def plot_tras_on_plane(
         tra_samples: translation samples to be plotted, shape (N, 3)
         tra_gt: groundtruth translations plotted as circles, shape (M, 3)
         markers: marks to be used for individual samples
+        cm_position: colorbar position on the figure
     """
     tra_mins = scene_dims[0] - scene_dims[2]
     tra_maxs = scene_dims[1] + scene_dims[2]
 
-    z_cm = cmx.ScalarMappable(
-        norm=clrs.Normalize(vmin=tra_mins[2], vmax=tra_maxs[2]),
-        cmap=plt.get_cmap("plasma"),
-    )
+    cmap = mpl.cm.plasma
+    norm = mpl.colors.Normalize(vmin=tra_mins[2], vmax=tra_maxs[2])
+    z_cm = cmx.ScalarMappable(norm=norm, cmap=cmap)
 
     ax = figure.add_subplot(position)
     ax.set_xlim([tra_mins[0], tra_maxs[0]])
     ax.set_ylim([tra_mins[1], tra_maxs[1]])
     ax.set_aspect("equal")
     ax.set_title(title)
+    ax.set_xlabel("x")
+    ax.set_ylabel("y")
     if tra_gt is not None:
         for tra in tra_gt:
             ax.add_patch(
@@ -221,10 +238,15 @@ def plot_tras_on_plane(
         for (x, y, z), marker in zip(tra_samples, markers[: len(tra_samples)]):
             ax.scatter(x, y, s=50, color=z_cm.to_rgba(z), marker=marker)
 
+    if cm_position is not None:
+        cm_ax = figure.add_subplot(cm_position)
+        mpl.colorbar.ColorbarBase(cm_ax, cmap=cmap, norm=norm)
+        cm_ax.set_ylabel("z")
+
 
 def plot_rots_on_plane(
     figure: plt.Figure,
-    position: int,
+    position: SubplotSpec,
     title: str,
     quat_samples: np.ndarray,
     quat_gt: Optional[np.ndarray] = None,
