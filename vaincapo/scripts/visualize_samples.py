@@ -79,7 +79,7 @@ def main(config: dict) -> None:
                 scene_path,
                 cfg.run + " : " + query_file_name[:-4],
                 query_renders[i] if split == "valid" else None,
-                sample_renders[i] if split == "valid" else None,
+                sample_renders[i, : cfg.num_samples] if split == "valid" else None,
                 data["tra_gt"][i],
                 data["rot_gt"][i],
                 plot_path,
