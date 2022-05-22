@@ -1,24 +1,22 @@
 #!/bin/bash
 
-bash_script_path=$(realpath $0)
-package_dir_path=$(dirname $(dirname $bash_script_path))
-scripts_dir_path="$package_dir_path/scripts"
-repo_dir_path=$(dirname $package_dir_path)
-code_dir_path=$(dirname $repo_dir_path)
-parent_dir_path=$(dirname $code_dir_path)
+repo_dir_path=$(dirname $(realpath $0))
+scripts_dir_path="$repo_dir_path/vaincapo/scripts"
+ingp_dir_path="$HOME/code/instant-ngp"
+dataset_dir_path="$HOME/data/Ambiguous_ReLoc_Dataset"
 
 render_height=240
 render_width=135
 
-for scene in "blue_chairs" "meeting_table" "staircase" "staircase_ext" "seminar"
-do for num_coeff in 5 10 25 50
+for scene in "blue_chairs"
+do for num_coeff in 50
     do
         run=$scene"_"$num_coeff
         run_dir_path="$repo_dir_path/bingham_runs/$run"
-        scene_dir_path="$parent_dir_path/data/Ambiguous_ReLoc_Dataset/$scene"
+        scene_dir_path="$dataset_dir_path/$scene"
         echo "evaluating run $run"
         python $scripts_dir_path/evaluate_samples.py $run
-        python $code_dir_path/instant-ngp/scripts/run.py \
+        python $ingp_dir_path/scripts/run.py \
             --mode nerf \
             --load_snapshot $scene_dir_path/nerf.msgpack \
             --screenshot_transforms $run_dir_path/transforms.json \

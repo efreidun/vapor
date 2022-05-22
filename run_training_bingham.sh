@@ -1,10 +1,8 @@
 #!/bin/bash
 
-bash_script_path=$(realpath $0)
-package_dir_path=$(dirname $(dirname $bash_script_path))
-scripts_dir_path="$package_dir_path/scripts"
-code_dir_path=$(dirname $(dirname $package_dir_path))
-bingham_dir_path="$code_dir_path/torch_bingham/cam_reloc"
+repo_dir_path=$(dirname $(realpath $0))
+scripts_dir_path="$repo_dir_path/vaincapo/scripts"
+bingham_dir_path="$HOME/code/torch_bingham/cam_reloc"
 
 for sequence in "blue_chairs" "meeting_table" "staircase" "staircase_ext" "seminar"
 do for num_coeff in 5 10 25 50

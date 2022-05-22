@@ -132,5 +132,5 @@ dmypy.json
 *.pdf
 runs/
 wandb/
-vaincapo/bash_scripts/save/
+save/
 bingham_runs/

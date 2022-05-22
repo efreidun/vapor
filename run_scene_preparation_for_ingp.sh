@@ -1,7 +1,7 @@
 #!/bin/bash
 
-bash_script_path=$(realpath $0)
-scripts_dir_path="$(dirname $(dirname $bash_script_path))/scripts"
+repo_dir_path=$(dirname $(realpath $0))
+scripts_dir_path="$repo_dir_path/vaincapo/scripts"
 
 for scene in "meeting_table" "blue_chairs" "seminar" "staircase" "staircase_ext"
 do

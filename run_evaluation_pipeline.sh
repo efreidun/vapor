@@ -1,0 +1,27 @@
+#!/bin/bash
+
+repo_dir_path=$(dirname $(realpath $0))
+scripts_dir_path="$repo_dir_path/vaincapo/scripts"
+ingp_dir_path="$HOME/code/instant-ngp"
+dataset_dir_path="$HOME/data/Ambiguous_ReLoc_Dataset"
+
+render_height=240
+render_width=135
+
+for run in "jumping-fog-244"
+do
+    run_dir_path="$repo_dir_path/runs/$run"
+    scene=$(yq .sequence $run_dir_path/config.yaml)
+    scene_dir_path="$dataset_dir_path/$scene"
+    echo "evaluating run $run in scene $scene"
+    python $scripts_dir_path/evaluate_pipeline.py $run
+    python $ingp_dir_path/scripts/run.py \
+        --mode nerf \
+        --load_snapshot $scene_dir_path/nerf.msgpack \
+        --screenshot_transforms $run_dir_path/transforms.json \
+        --screenshot_dir $run_dir_path/renders \
+        --width $render_width \
+        --height $render_height
+    python $scripts_dir_path/evaluate_renders.py $run \
+       --width $render_width --height $render_height
+done
