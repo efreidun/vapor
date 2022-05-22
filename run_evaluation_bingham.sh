@@ -8,8 +8,8 @@ dataset_dir_path="$HOME/data/Ambiguous_ReLoc_Dataset"
 render_height=240
 render_width=135
 
-for scene in "blue_chairs"
-do for num_coeff in 50
+for scene in "blue_chairs" "meeting_table" "staircase"
+do for num_coeff in 10 25 50 5
     do
         run=$scene"_"$num_coeff
         run_dir_path="$repo_dir_path/bingham_runs/$run"
@@ -25,5 +25,7 @@ do for num_coeff in 50
             --height $render_height
         python $scripts_dir_path/evaluate_renders.py $run \
             --source bingham --width $render_width --height $render_height
+        python $scripts_dir_path/visualize_samples.py $run \
+            --source bingham
     done
 done

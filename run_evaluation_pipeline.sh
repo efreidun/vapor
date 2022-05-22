@@ -24,4 +24,5 @@ do
         --height $render_height
     python $scripts_dir_path/evaluate_renders.py $run \
        --width $render_width --height $render_height
+    python $scripts_dir_path/visualize_samples.py $run
 done
