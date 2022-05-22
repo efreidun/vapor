@@ -12,6 +12,8 @@ from skimage.metrics import structural_similarity as ssim
 from skimage.metrics import mean_squared_error as mse
 from tqdm import tqdm
 
+from vaincapo.utils import read_rendered_samples
+
 
 def parse_arguments() -> dict:
     """Parse command line arguments.
@@ -34,7 +36,7 @@ def parse_arguments() -> dict:
 
 def main(config: dict) -> None:
     cfg = SimpleNamespace(**config)
-    base_path = Path.home() / "code" / "vaincapo"
+    base_path = Path.home() / "code/vaincapo"
 
     assert cfg.source in (
         "pipeline",
@@ -54,59 +56,42 @@ def main(config: dict) -> None:
         "render",
     ), "Reference has to be either 'image' or 'render'"
     scene_path = Path.home() / "data/Ambiguous_ReLoc_Dataset" / scene
-    reference_path = (
-        (scene_path / "test")
-        if cfg.reference == "image"
-        else scene_path / "renders/test"
+
+    sample_renders, query_images, query_renders = read_rendered_samples(
+        run_path / "transforms.json",
+        run_path / "renders",
+        scene_path / "test",
+        scene_path / "renders/test",
+        (cfg.width, cfg.height),
     )
 
-    with open(run_path / "transforms.json") as f:
-        transforms = json.load(f)
-    renders_path = run_path / "renders"
-    sample_image_paths = sorted(renders_path.glob("**/*.png"))
-    frame_ids = [
-        int(str((sample_image_path.stem)).split("_")[0])
-        for sample_image_path in sample_image_paths
-    ]
-    m = transforms["num_renders"]
-    query_images = np.concatenate(
-        [
-            np.array(
-                Image.open(
-                    reference_path / transforms["frames"][frame_id]["query_image"]
-                ).resize((cfg.width, cfg.height)),
-                dtype=float,
-            )[None, ...]
-            for frame_id in frame_ids[::m]
-        ]
-    )[:, :, :, :3]
-    sample_images = np.concatenate(
-        [
-            np.array(Image.open(sample_image_path), dtype=float)[None, ...]
-            for sample_image_path in sample_image_paths
-        ]
-    )[:, :, :, :3]
-    q = len(query_images)
-    n, im_h, im_w = sample_images.shape[:3]
-    assert q == n // m, "number of query images and produced sample sets must be equal"
-    sample_images = sample_images.reshape(q, m, im_h, im_w, 3)
-
-    ssims = []
-    mses = []
-    for query_image, sample_image in tqdm(zip(query_images, sample_images), total=q):
-        for samp_image in sample_image:
-            mses.append(mse(query_image, samp_image))
-            ssims.append(
-                ssim(query_image, samp_image, data_range=255, multichannel=True)
-            )
+    query_sets = {"images": query_images, "renders": query_renders}
+    mse_avgs = []
+    ssim_avgs = []
+    for queries in query_sets.values():
+        mses = []
+        ssims = []
+        for query, sample_render in tqdm(
+            zip(queries, sample_renders), total=len(queries)
+        ):
+            for samp_render in sample_render:
+                mses.append(mse(query, samp_render))
+                ssims.append(
+                    ssim(query, samp_render, data_range=255, multichannel=True)
+                )
+        mse_avgs.append(np.mean(mses))
+        ssim_avgs.append(np.mean(ssims))
 
     with open(run_path / "photometrics.txt", "w") as f:
         f.write(
-            f"{cfg.run} {len(query_images)} test {scene} query"
-            + f" {cfg.reference}s with {m} {cfg.width}x{cfg.height} renders each\n"
+            f"{cfg.run} {len(query_images)} test {scene} queries with"
+            + f" {sample_renders.shape[1]} {cfg.width}x{cfg.height} rendered samples"
+            + f" each\n"
         )
-        f.write(f"MSE: {np.mean(mses)}\n")
-        f.write(f"SSIM: {np.mean(ssims)}\n")
+        for queries, avg_ssim, avg_mse in zip(query_sets.keys(), ssim_avgs, mse_avgs):
+            f.write(f"sample renders agains query {queries}:\n")
+            f.write(f"MSE: {avg_mse}\n")
+            f.write(f"SSIM: {np.mean(avg_ssim)}\n")
 
 
 if __name__ == "__main__":

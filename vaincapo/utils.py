@@ -1,12 +1,72 @@
 """Module that contains utils functions."""
 
-from typing import Tuple, Union, List, Iterable
+from typing import Tuple, Union, List, Iterable, Optional
 from pathlib import Path
 import json
 
+from PIL import Image
 import numpy as np
 from scipy.spatial.transform import Rotation
 import torch
+
+
+def read_rendered_samples(
+    transforms_path: Path,
+    renders_path: Path,
+    query_images_path: Path,
+    query_renders_path: Path,
+    resize: Tuple[int, int],
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Read saved renders of samples and their corresponding query images.
+
+    Args:
+        transforms_path: path to the transforms.json file used to render the samples
+        renders_path: directory where the renders are saved
+        query_images_path: directory of the original query images
+        query_renders_path: directory of the rendered query images
+        resize: (width, height), to which the query images are resized
+
+    Returns:
+        rendered samples, shape (N, M, H, W, 3) for N query images and M samples,
+        query images, shape (N, H, W, 3)
+    """
+    with open(transforms_path) as f:
+        transforms = json.load(f)
+    sample_image_paths = sorted(renders_path.glob("**/*.png"))
+    frame_ids = [
+        int(str((sample_image_path.stem)).split("_")[0])
+        for sample_image_path in sample_image_paths
+    ]
+    num_renders = transforms["num_renders"]
+    sample_renders = np.concatenate(
+        [
+            np.array(Image.open(sample_image_path))[None, ...]
+            for sample_image_path in sample_image_paths
+        ]
+    )[:, :, :, :3]
+    im_h, im_w = sample_renders.shape[1:3]
+    sample_renders = sample_renders.reshape(-1, num_renders, im_h, im_w, 3)
+    query_images, query_renders = (
+        np.concatenate(
+            [
+                np.array(
+                    Image.open(
+                        query_path / transforms["frames"][frame_id]["query_image"]
+                    ).resize(resize)
+                )[None, ...]
+                for frame_id in frame_ids[::num_renders]
+            ]
+        )[:, :, :, :3]
+        for query_path in (query_images_path, query_renders_path)
+    )
+    assert len(query_images) == len(
+        sample_renders
+    ), "number of query images and produced sample sets must be equal"
+    assert len(query_renders) == len(
+        sample_renders
+    ), "number of query renders and produced sample sets must be equal"
+
+    return sample_renders, query_images, query_renders
 
 
 def write_metrics(
