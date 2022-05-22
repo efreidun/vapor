@@ -212,13 +212,15 @@ def plot_rots_on_plane(
         norm=clrs.Normalize(vmin=0, vmax=2 * np.pi), cmap=plt.get_cmap("hsv")
     )
 
-    rot_ax = figure.add_subplot(position, projection="mollweide")
-    rot_ax.grid(True)
-    rot_ax.set_title(title)
+    ax = figure.add_subplot(position, projection="mollweide")
+    ax.grid(True)
+    ax.set_title(title)
+    ax.set_xticklabels([])
+    ax.set_yticklabels([])
     if quat_gt is not None:
         hopf_gt = quat_to_hopf(quat_gt)
         for hopf in hopf_gt:
-            rot_ax.add_patch(
+            ax.add_patch(
                 Circle(
                     xy=hopf[:2],
                     radius=0.2,
@@ -229,8 +231,8 @@ def plot_rots_on_plane(
             )
     hopf_samples = quat_to_hopf(quat_samples)
     if markers is None:
-        rot_ax.scatter(*hopf_samples.T[:2], s=2, color=s1_cm.to_rgba(hopf_samples.T[2]))
+        ax.scatter(*hopf_samples.T[:2], s=2, color=s1_cm.to_rgba(hopf_samples.T[2]))
     else:
         assert len(markers) == len(hopf_samples), "Must have as many markers as samples"
         for (phi, theta, psi), marker in zip(hopf_samples, markers):
-            rot_ax.scatter(phi, theta, s=50, color=s1_cm.to_rgba(psi), marker=marker)
+            ax.scatter(phi, theta, s=50, color=s1_cm.to_rgba(psi), marker=marker)
