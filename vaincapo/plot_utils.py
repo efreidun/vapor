@@ -129,47 +129,27 @@ def plot_posterior(
     render_ax.set_yticks([])
     render_ax.set_title("samples from posterior")
 
-    tra_ax = fig.add_subplot(232)
-    tra_ax.set_xlim([tra_mins[0], tra_maxs[0]])
-    tra_ax.set_ylim([tra_mins[1], tra_maxs[1]])
-    tra_ax.set_aspect("equal")
-    tra_ax.set_title("translation posterior")
-    if tra_gt is not None:
-        tra_ax.add_patch(
-            Circle(
-                xy=tra_gt[:2],
-                radius=0.2,
-                linewidth=2,
-                facecolor="none",
-                edgecolor=z_cm.to_rgba(tra_gt[2]),
-            )
-        )
-    tra_ax.scatter(*tra_samples.T[:2], s=2, color=z_cm.to_rgba(tra_samples.T[2]))
-
+    plot_tras_on_plane(
+        fig,
+        232,
+        "translations posterior2",
+        scene_dims,
+        tra_samples,
+        tra_gt[None, :],
+    )
     plot_rots_on_plane(fig, 233, "rotation posterior", quat_samples, quat_gt[None, :])
 
     markers = ["o", "+", "x", "*", ".", "X", "p", "h", "D", "d", "^", "v", "s"]
 
-    tra_samp_ax = fig.add_subplot(235)
-    tra_samp_ax.set_xlim([tra_mins[0], tra_maxs[0]])
-    tra_samp_ax.set_ylim([tra_mins[1], tra_maxs[1]])
-    tra_samp_ax.set_aspect("equal")
-    tra_samp_ax.set_title("translation samples")
-    if tra_gt is not None:
-        tra_samp_ax.add_patch(
-            Circle(
-                xy=tra_gt[:2],
-                radius=0.2,
-                linewidth=2,
-                facecolor="none",
-                edgecolor=z_cm.to_rgba(tra_gt[2]),
-            )
-        )
-    for (x, y, z), marker in zip(
+    plot_tras_on_plane(
+        fig,
+        235,
+        "translations samples2",
+        scene_dims,
         tra_samples[:num_samples],
-        markers[:num_samples],
-    ):
-        tra_samp_ax.scatter(x, y, s=50, color=z_cm.to_rgba(z), marker=marker)
+        tra_gt[None, :],
+        markers,
+    )
 
     plot_rots_on_plane(
         fig,
@@ -177,13 +157,69 @@ def plot_posterior(
         "rotation samples",
         quat_samples[:num_samples],
         quat_gt[None, :],
-        markers[:num_samples],
+        markers,
     )
 
     if save is not None:
         fig.savefig(save)
 
     return fig
+
+
+def plot_tras_on_plane(
+    figure: plt.Figure,
+    position: int,
+    title: str,
+    scene_dims: np.ndarray,
+    tra_samples: np.ndarray,
+    tra_gt: Optional[np.ndarray] = None,
+    markers: Optional[Iterable[str]] = None,
+) -> None:
+    """Plot rotation samples on a 2D plane.
+
+    Translation samples are plotted on a plane, with height of shown by a color map.
+
+    Args:
+        figure: figure instance on which plot is made in-place
+        position: subplot position on the figure
+        title: title of the subplot
+        scene_dims:
+            2D array with rows containing minimum, maximum and margin values repectively
+            and columns the x, y, z axes, shape (3, 3)
+        tra_samples: translation samples to be plotted, shape (N, 3)
+        tra_gt: groundtruth translations plotted as circles, shape (M, 3)
+        markers: marks to be used for individual samples
+    """
+    tra_mins = scene_dims[0] - scene_dims[2]
+    tra_maxs = scene_dims[1] + scene_dims[2]
+
+    z_cm = cmx.ScalarMappable(
+        norm=clrs.Normalize(vmin=tra_mins[2], vmax=tra_maxs[2]),
+        cmap=plt.get_cmap("plasma"),
+    )
+
+    ax = figure.add_subplot(position)
+    ax.set_xlim([tra_mins[0], tra_maxs[0]])
+    ax.set_ylim([tra_mins[1], tra_maxs[1]])
+    ax.set_aspect("equal")
+    ax.set_title(title)
+    if tra_gt is not None:
+        for tra in tra_gt:
+            ax.add_patch(
+                Circle(
+                    xy=tra[:2],
+                    radius=0.2,
+                    linewidth=2,
+                    facecolor="none",
+                    edgecolor=z_cm.to_rgba(tra[2]),
+                )
+            )
+    if markers is None:
+        ax.scatter(*tra_samples.T[:2], s=2, color=z_cm.to_rgba(tra_samples.T[2]))
+    else:
+        assert len(markers) >= len(tra_samples), "Must have as many markers as samples"
+        for (x, y, z), marker in zip(tra_samples, markers[: len(tra_samples)]):
+            ax.scatter(x, y, s=50, color=z_cm.to_rgba(z), marker=marker)
 
 
 def plot_rots_on_plane(
@@ -233,6 +269,8 @@ def plot_rots_on_plane(
     if markers is None:
         ax.scatter(*hopf_samples.T[:2], s=2, color=s1_cm.to_rgba(hopf_samples.T[2]))
     else:
-        assert len(markers) == len(hopf_samples), "Must have as many markers as samples"
-        for (phi, theta, psi), marker in zip(hopf_samples, markers):
+        assert len(markers) >= len(hopf_samples), "Must have as many markers as samples"
+        for (phi, theta, psi), marker in zip(
+            hopf_samples, markers[: len(hopf_samples)]
+        ):
             ax.scatter(phi, theta, s=50, color=s1_cm.to_rgba(psi), marker=marker)
