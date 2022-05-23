@@ -38,7 +38,7 @@ def main(config: dict) -> None:
         split_path = run_path / f"{split_name}.npz"
         mixmod = dict(np.load(split_path))
         tra_locs = torch.from_numpy(mixmod["tra_locs"]).to(device)
-        tra_vars = torch.from_numpy(mixmod["tra_vars"]).to(device)
+        tra_stds = torch.from_numpy(mixmod["tra_stds"]).to(device)
         rot_locs = torch.from_numpy(mixmod["rot_locs"]).to(device)
         rot_lams = torch.from_numpy(mixmod["rot_lams"]).to(device)
         coeffs = torch.from_numpy(mixmod["coeffs"]).to(device)
@@ -47,7 +47,7 @@ def main(config: dict) -> None:
         rot_samples = []
         for i in tqdm(range(len(tra_locs))):
             covariances = torch.cat(
-                [torch.diag(variances)[None, :, :] for variances in tra_vars[i]]
+                [torch.diag(stds ** 2)[None, :, :] for stds in tra_stds[i]]
             )
             tra_gmm = GMM(tra_locs[i], covariances, coeffs[i])
             rot_bmm = BMM(rot_locs[i], rot_lams[i], coeffs[i])

@@ -32,7 +32,7 @@ def plot_mixture_model(
     Args:
         query_image: query image, shape (H, W, 3)
         tra_locs: translation component locations, shape (N, 3)
-        tra_stds: translation component variances, shape (N, 3)
+        tra_stds: translation component standard deviations, shape (N, 3)
         quat_locs: rotation locations in quaternion [w, x, y, z], shape (N, 4)
         quat_lams: rotation bingham lambdas in quaternion [w, x, y, z], shape (N, 3)
         coeffs: component coefficient weights, shape (N,)

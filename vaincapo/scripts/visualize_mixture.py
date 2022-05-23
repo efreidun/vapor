@@ -51,7 +51,7 @@ def main(config: dict) -> None:
             plot_mixture_model(
                 np.array(Image.open(dataset_path / query_file_name)),
                 data["tra_locs"][i],
-                data["tra_vars"][i],
+                data["tra_stds"][i],
                 data["rot_locs"][i],
                 data["rot_lams"][i],
                 data["coeffs"][i],
