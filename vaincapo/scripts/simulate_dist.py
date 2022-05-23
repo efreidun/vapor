@@ -2,11 +2,13 @@
 
 from types import SimpleNamespace
 from pathlib import Path
+from collections import Counter
 
 import argparse
 import numpy as np
 from tqdm import tqdm
 import torch
+import torch.distributions as D
 
 from vaincapo.sampling import GMM, BMM
 
@@ -41,19 +43,33 @@ def main(config: dict) -> None:
         tra_stds = torch.from_numpy(mixmod["tra_stds"]).to(device)
         rot_locs = torch.from_numpy(mixmod["rot_locs"]).to(device)
         rot_lams = torch.from_numpy(mixmod["rot_lams"]).to(device)
-        coeffs = torch.from_numpy(mixmod["coeffs"]).to(device)
+        coeffs = mixmod["coeffs"]
+        num_queries, num_comps = coeffs.shape
 
         tra_samples = []
         rot_samples = []
-        for i in tqdm(range(len(tra_locs))):
-            covariances = torch.cat(
-                [torch.diag(stds ** 2)[None, :, :] for stds in tra_stds[i]]
+        for i in tqdm(range(num_queries)):
+            if np.isnan(coeffs[i]).any():
+                coeffs[i] = np.ones(num_comps) / num_comps
+            comp_counts = Counter(
+                np.random.choice(num_comps, cfg.num_samples, replace=True, p=coeffs[i])
             )
-            tra_gmm = GMM(tra_locs[i], covariances, coeffs[i])
+            num_samples = np.zeros(num_comps, dtype=int)
+            num_samples[list(comp_counts.keys())] = list(comp_counts.values())
             rot_bmm = BMM(rot_locs[i], rot_lams[i], coeffs[i])
-            tra_samples.append(tra_gmm.sample((cfg.num_samples,))[None, :, :])
             rot_samples.append(
-                rot_bmm.sample(cfg.num_samples, cfg.num_candidates)[None, :, :]
+                rot_bmm.sample(num_samples, cfg.num_candidates)[None, :, :]
+            )
+            tra_samples.append(
+                torch.cat(
+                    [
+                        D.MultivariateNormal(
+                            tra_locs[i, j], torch.diag(tra_stds[i, j] ** 2)
+                        ).sample((count,))
+                        for j, count in enumerate(num_samples)
+                        if count != 0
+                    ]
+                )[None, :, :]
             )
         tra_samples = torch.cat(tra_samples).cpu().numpy()
         rot_samples = torch.cat(rot_samples).cpu().numpy()
