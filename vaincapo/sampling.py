@@ -1,6 +1,7 @@
 """Module that contain tools for sampling from distributions."""
 
-from typing import Tuple
+from typing import Tuple, Union
+from collections import Counter
 
 import numpy as np
 import torch
@@ -63,13 +64,11 @@ class BMM:
             lambdas: concentration matrix values of components, shape (N, 3)
             weights: mixture weights, shape (N,)
         """
-        self._locations = locations
-        self._lambdas = lambdas
-        self._weights = weights / torch.norm(weights)
+        self._comps = [
+            Bingham(location, lmbda) for location, lmbda in zip(locations, lambdas)
+        ]
+        self._weights = weights
         self._device = locations.device
-        self._density_upper_bound = torch.sum(
-            self._weights * torch.exp(self.log_prob(self._locations))
-        )
 
     def log_prob(self, value: torch.Tensor) -> torch.Tensor:
         """Evaluate log probability of the distribution.
@@ -82,18 +81,82 @@ class BMM:
         Returns:
             log probability at the queried values, shape (M,)
         """
-        n = len(self._locations)
-        if len(value.shape) == 1:
-            value = value.reshape(1, 4)
-        m = len(value)
-        log_probs = torch_bingham.bingham_prob(
-            self._locations[:, None, :].repeat(1, m, 1).reshape(-1, 4),
-            self._lambdas[:, None, :].repeat(1, m, 1).reshape(-1, 3),
-            value[None, :, :].repeat(n, 1, 1).reshape(-1, 4),
-        ).reshape(n, m)
+        log_probs = torch.vstack([comp.log_prob(value) for comp in self._comps])
         return torch.log(
             torch.sum(self._weights[:, None] * torch.exp(log_probs), dim=0)
         )
+
+    def sample(
+        self, num_samples: Union[int, np.ndarray], num_candidates: int = 1000
+    ) -> torch.Tensor:
+        """Draw samples from the mixture model.
+
+        Args:
+            num_samples:
+                number of samples to be drawn. if int, samples are randomly drawn from
+                the components according to their weights. if array, specifies the
+                number of samples drawn from each component, must be of shape (N,)
+            num_candidates: number of candidates considered at every step
+
+        Returns:
+            drawn quaternion samples [w, x, y, z], shape (num_samples, 4)
+        """
+        if type(num_samples) is int:
+            comp_counts = Counter(
+                np.random.choice(
+                    len(self._comps), num_samples, replace=True, p=self._weights
+                )
+            )
+            num_samples = np.zeros(len(self._comps), dtype=int)
+            num_samples[list(comp_counts.keys())] = list(comp_counts.values())
+        else:
+            assert len(num_samples) == len(
+                self._comps
+            ), "must specify number of samples for each component"
+
+        return torch.cat(
+            [
+                comp.sample(num_comp_samples, num_candidates)
+                for comp, num_comp_samples in zip(self._comps, num_samples)
+            ]
+        )
+
+
+class Bingham:
+    """Bingham distribution."""
+
+    def __init__(self, location: torch.Tensor, lambdas: torch.Tensor) -> None:
+        """Construct a Bingham distribution.
+
+        Args:
+            locations:
+                location in quaternion parameterization [w, x, y, z], shape (4,)
+            lambdas: concentration matrix values, shape (3,)
+        """
+        self._location = location
+        self._lambdas = lambdas
+        self._device = self._location.device
+        self._density_upper_bound = torch.exp(self.log_prob(self._location))
+
+    def log_prob(self, value: torch.Tensor) -> torch.Tensor:
+        """Evaluate log probability of the distribution.
+
+        Args:
+            value:
+                value(s) at which the density is evaluated in quaternion
+                parameterization [w, x, y, z], shape (M, 4)
+
+        Returns:
+            log probability at the queried values, shape (M,)
+        """
+        if len(value.shape) == 1:
+            value = value.reshape(1, 4)
+        m = len(value)
+        return torch_bingham.bingham_prob(
+            self._location[None, :].repeat(m, 1),
+            self._lambdas[None, :].repeat(m, 1),
+            value,
+        ).squeeze()
 
     def _generate_uniform_quaternion(self, num_samples: int) -> torch.Tensor:
         """Generate a normalized uniform quaternion.
@@ -125,7 +188,7 @@ class BMM:
         )
 
     def sample(self, num_samples: int, num_candidates: int = 1000) -> torch.Tensor:
-        """Draw samples from the mixture model.
+        """Draw samples from the distribution via rejection sampling.
 
         Args:
             num_samples: number of samples to be drawn
