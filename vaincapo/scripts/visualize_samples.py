@@ -61,7 +61,7 @@ def main(config: dict) -> None:
                 scene_path / "renders/test",
             )
 
-        queries = cfg.query or range(len(query_images))
+        queries = cfg.query or range(len(data["names"]))
         for i in tqdm(queries):
             name_with_split = (
                 f"{'test' if split == 'valid' else 'train'}/" + data["names"][i]
