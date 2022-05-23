@@ -14,6 +14,102 @@ from vaincapo.utils import quat_to_hopf
 from vaincapo.read_write import read_scene_dims
 
 
+def plot_mixture_model(
+    query_image: np.ndarray,
+    tra_locs: np.ndarray,
+    tra_stds: np.ndarray,
+    quat_locs: np.ndarray,
+    quat_lams: np.ndarray,
+    coeffs: np.ndarray,
+    scene_path: Path,
+    title: Optional[str],
+    tra_gt: Optional[np.ndarray] = None,
+    quat_gt: Optional[np.ndarray] = None,
+    save: Optional[Union[Path, str]] = None,
+) -> plt.Figure:
+    """Plot components of a mixture model SE(3).
+
+    Args:
+        query_image: query image, shape (H, W, 3)
+        tra_locs: translation component locations, shape (N, 3)
+        tra_stds: translation component variances, shape (N, 3)
+        quat_locs: rotation locations in quaternion [w, x, y, z], shape (N, 4)
+        quat_lams: rotation bingham lambdas in quaternion [w, x, y, z], shape (N, 3)
+        coeffs: component coefficient weights, shape (N,)
+        scene_path: path to the scene that contains camera.json and mesh.ply
+        title: title of figure
+        tra_gt: groundtruth translation, shape (3,)
+        quat_gt: groundtruth rotation in quaternion [w, x, y, z], shape (4,)
+        save: save path including file extension
+
+    Returns:
+        figure instance
+    """
+    scene_dims = read_scene_dims(scene_path)
+
+    fig = plt.figure(figsize=(20, 10))
+    fig.suptitle(title)
+    r = [0, 50]
+    c = [0, 40]
+    w = 40
+    h = 45
+    cb_o = 1
+    cb_w = 1
+    cw_o = 1
+    cw_w = 4
+    grid_spec = GridSpec(100, 100)
+
+    # first row of subplots, query image and posterior samples
+    show_image(
+        fig,
+        grid_spec[r[0] : r[0] + h, c[0] : c[0] + w],
+        "query image",
+        query_image,
+    )
+    plot_rot_dists_on_plane(
+        fig,
+        grid_spec[r[0] : r[0] + h, c[1] : c[1] + w],
+        "rotation components",
+        quat_locs,
+        quat_lams,
+        coeffs,
+        quat_gt[None, :],
+        grid_spec[r[0] : r[0] + h, c[1] + w + cw_o : c[1] + w + cw_o + cw_w],
+    )
+
+    # second row of subplots, projecive view and individual samples
+    render = render_3d(
+        scene_path,
+        tra_locs,
+        quat_locs,
+        tra_gt,
+        quat_gt,
+    )
+    show_image(
+        fig,
+        grid_spec[r[1] : r[1] + h, c[0] : c[0] + w],
+        "samples from posterior",
+        render,
+    )
+    plot_tra_dists_on_plane(
+        fig,
+        grid_spec[r[1] : r[1] + h, c[1] : c[1] + w],
+        "translations components",
+        scene_dims,
+        tra_locs,
+        tra_stds,
+        coeffs,
+        tra_gt[None, :],
+        grid_spec[r[1] : r[1] + h, c[1] + w + cb_o : c[1] + w + cb_o + cb_w],
+    )
+
+    if save is not None:
+        print(f"Saving plot {save}")
+        fig.savefig(save)
+
+    return fig
+
+
 def plot_posterior(
     query_image: np.ndarray,
     tra_samples: np.ndarray,
@@ -69,7 +165,7 @@ def plot_posterior(
         "query image",
         query_image,
     )
-    plot_tras_on_plane(
+    plot_tra_samples_on_plane(
         fig,
         grid_spec[r[0] : r[0] + h, c[1] : c[1] + w],
         "translations posterior",
@@ -79,7 +175,7 @@ def plot_posterior(
         None,
         grid_spec[r[0] : r[0] + h, c[1] + w + cb_o : c[1] + w + cb_o + cb_w],
     )
-    plot_rots_on_plane(
+    plot_rot_samples_on_plane(
         fig,
         grid_spec[r[0] : r[0] + h, c[2] : c[2] + w],
         "rotation posterior",
@@ -103,7 +199,7 @@ def plot_posterior(
         "samples from posterior",
         render,
     )
-    plot_tras_on_plane(
+    plot_tra_samples_on_plane(
         fig,
         grid_spec[r[1] : r[1] + h, c[1] : c[1] + w],
         "translations samples",
@@ -113,7 +209,7 @@ def plot_posterior(
         markers,
         grid_spec[r[1] : r[1] + h, c[1] + w + cb_o : c[1] + w + cb_o + cb_w],
     )
-    plot_rots_on_plane(
+    plot_rot_samples_on_plane(
         fig,
         grid_spec[r[1] : r[1] + h, c[2] : c[2] + w],
         "rotation samples",
@@ -139,7 +235,7 @@ def plot_posterior(
             )
 
     if save is not None:
-        print(f"Saving plot at: {save}")
+        print(f"Saving plot {save}")
         fig.savefig(save)
 
     return fig
@@ -217,7 +313,7 @@ def show_image(
     ax.set_title(title)
 
 
-def plot_tras_on_plane(
+def plot_tra_samples_on_plane(
     figure: plt.Figure,
     position: SubplotSpec,
     title: str,
@@ -281,7 +377,7 @@ def plot_tras_on_plane(
         cm_ax.set_axis_off()
 
 
-def plot_rots_on_plane(
+def plot_rot_samples_on_plane(
     figure: plt.Figure,
     position: SubplotSpec,
     title: str,
@@ -335,6 +431,135 @@ def plot_rots_on_plane(
             hopf_samples, markers[: len(hopf_samples)]
         ):
             ax.scatter(phi, theta, s=50, color=s1_cm.to_rgba(psi), marker=marker)
+
+    if cm_position is not None:
+        cm_ax = figure.add_subplot(cm_position, projection="polar")
+        cb = mpl.colorbar.ColorbarBase(
+            cm_ax, cmap=cmap, norm=norm, orientation="horizontal"
+        )
+        cb.outline.set_visible(False)
+        cm_ax.set_axis_off()
+        cm_ax.set_rlim([-1, 1])
+
+
+def plot_tra_dists_on_plane(
+    figure: plt.Figure,
+    position: SubplotSpec,
+    title: str,
+    scene_dims: np.ndarray,
+    tra_locs: np.ndarray,
+    tra_stds: np.ndarray,
+    coeffs: np.ndarray,
+    tra_gt: Optional[np.ndarray] = None,
+    cm_position: Optional[SubplotSpec] = None,
+) -> None:
+    """Plot components of Gaussian mixture model translation distribution on a 2D plane.
+
+    Translations are plotted on a plane, with height of shown by a color map.
+
+    Args:
+        figure: figure instance on which plot is made in-place
+        position: subplot position on the figure
+        title: title of the subplot
+        scene_dims:
+            2D array with rows containing minimum, maximum and margin values repectively
+            and columns the x, y, z axes, shape (3, 3)
+        tra_locs: location of components, shape (N, 3)
+        tra_stds: standard deviations of components, shape (N, 3)
+        coeffs: weight coeffients of mixutre components, shape (N,)
+        markers: marks to be used for individual samples
+        cm_position: colorbar position on the figure
+    """
+    tra_mins = scene_dims[0] - scene_dims[2]
+    tra_maxs = scene_dims[1] + scene_dims[2]
+
+    cmap = mpl.cm.plasma
+    norm = mpl.colors.Normalize(vmin=tra_mins[2], vmax=tra_maxs[2])
+    z_cm = mpl.cm.ScalarMappable(norm=norm, cmap=cmap)
+
+    ax = figure.add_subplot(position)
+    ax.set_xlim([tra_mins[0], tra_maxs[0]])
+    ax.set_ylim([tra_mins[1], tra_maxs[1]])
+    ax.set_aspect("equal")
+    ax.set_title(title)
+    ax.set_xticks([])
+    ax.set_yticks([])
+    if tra_gt is not None:
+        ax.scatter(*tra_gt.T[:2], s=100, marker="*", color=z_cm.to_rgba(tra_gt.T[2]))
+
+    radii = 50 * np.mean(tra_stds, axis=1)
+    coeffs /= np.sum(coeffs)
+    for tra, radius, coeff in zip(tra_locs, radii, coeffs):
+        ax.add_patch(
+            Circle(
+                xy=tra[:2],
+                radius=radius,
+                linewidth=2,
+                facecolor=z_cm.to_rgba(tra[2]),
+                edgecolor=z_cm.to_rgba(tra[2]),
+                alpha=coeff,
+            )
+        )
+
+    if cm_position is not None:
+        cm_ax = figure.add_subplot(cm_position)
+        mpl.colorbar.ColorbarBase(cm_ax, cmap=cmap, norm=norm)
+        cm_ax.set_axis_off()
+
+
+def plot_rot_dists_on_plane(
+    figure: plt.Figure,
+    position: SubplotSpec,
+    title: str,
+    quat_locs: np.ndarray,
+    quat_lams: np.ndarray,
+    coeffs: np.ndarray,
+    quat_gt: Optional[np.ndarray] = None,
+    cm_position: Optional[SubplotSpec] = None,
+) -> None:
+    """Plot components of Bingham mixture model rotation distribution on a 2D plane.
+
+    Rotations are converted to Hopf coordinates, S^2 element of which is
+    projected onto a 2D plane using Mollweide projection, and the S^1 element marcated
+    by coloring the samples according to a color wheel.
+
+    Args:
+        figure: figure instance on which plot is made in-place
+        position: subplot position on the figure
+        title: title of the subplot
+        quat_locs: location of components in quaternions [w, x, y, z], shape (N, 4)
+        quat_lams: concenrtration parameters of components, shape (N, 3)
+        coeffs: weight coeffients of mixutre components, shape (N,)
+        quat_gt: groundtruth quaternions [w, x, y, z] plotted as circles, shape (M, 4)
+        cm_position: colorbar position on the figure
+    """
+    cmap = mpl.cm.hsv
+    norm = mpl.colors.Normalize(vmin=0, vmax=2 * np.pi)
+    s1_cm = mpl.cm.ScalarMappable(norm=norm, cmap=cmap)
+
+    ax = figure.add_subplot(position, projection="mollweide")
+    ax.grid(True)
+    ax.set_title(title)
+    ax.set_xticklabels([])
+    ax.set_yticklabels([])
+    if quat_gt is not None:
+        hopf_gt = quat_to_hopf(quat_gt)
+        ax.scatter(*hopf_gt.T[:2], s=100, marker="*", color=s1_cm.to_rgba(hopf_gt.T[2]))
+
+    hopf_locs = quat_to_hopf(quat_locs)
+    radii = -20 * (np.mean(quat_lams, axis=1) ** -1)
+    coeffs /= np.sum(coeffs)
+    for hopf, radius, coeff in zip(hopf_locs, radii, coeffs):
+        ax.add_patch(
+            Circle(
+                xy=hopf[:2],
+                radius=radius,
+                linewidth=2,
+                facecolor=s1_cm.to_rgba(hopf[2]),
+                edgecolor=s1_cm.to_rgba(hopf[2]),
+                alpha=coeff,
+            )
+        )
 
     if cm_position is not None:
         cm_ax = figure.add_subplot(cm_position, projection="polar")
