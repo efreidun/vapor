@@ -205,14 +205,18 @@ def write_sample_transforms(
 
 def read_poses(
     poses_path: Path,
+    dataset: str = "AmbiguousReloc",
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Read poses of a sequence from text file.
 
     Every row of the text file is one pose containing
-    sequence id, frame id, qw, qx, qy, qz, tx, ty, tz.
+    sequence id, frame id, qw, qx, qy, qz, tx, ty, tz for "AmbiguousReloc" dataset,
+    and row 3 onward of the text file is one pose containing
+    sequence/image_file_path tx ty tz qw qx qy qz for "CambridgeLandmarks" dataset.
 
     Args:
         poses_path: path to the sequence poses text file
+        dataset: dataset that the scene belongs to
 
     Returns:
         image sequence identifier, shape (N,)
@@ -222,14 +226,30 @@ def read_poses(
     """
     with open(poses_path) as f:
         content = f.readlines()
-    parsed_poses = np.array(
-        [[float(entry) for entry in line.strip().split(", ")] for line in content],
-        dtype=np.float32,
-    )
-    seq_ids = parsed_poses[:, 0].astype(int)
-    img_ids = parsed_poses[:, 1].astype(int)
-    tvecs = parsed_poses[:, 6:]
-    rotmats = quat_to_rotmat(parsed_poses[:, 2:6])
+    if dataset == "AmbiguousReloc":
+        parsed_poses = np.array(
+            [[float(entry) for entry in line.strip().split(", ")] for line in content],
+            dtype=np.float32,
+        )
+        seq_ids = parsed_poses[:, 0].astype(int)
+        img_ids = parsed_poses[:, 1].astype(int)
+        tvecs = parsed_poses[:, 6:]
+        rotmats = quat_to_rotmat(parsed_poses[:, 2:6])
+    elif dataset == "CambridgeLandmarks":
+        parsed_poses = np.array(
+            [[entry for entry in line.strip().split()] for line in content[3:]],
+            dtype=str,
+        )
+        file_paths = parsed_poses[:, 0]
+        seq_ids, img_ids = np.array(
+            [file_path.split("/") for file_path in file_paths]
+        ).T
+        seq_ids = np.array([seq_id[3:] for seq_id in seq_ids], dtype=int)
+        img_ids = np.array([img_id.split(".")[0][5:] for img_id in img_ids], dtype=int)
+        tvecs = parsed_poses[:, 1:4].astype(float)
+        rotmats = quat_to_rotmat(parsed_poses[:, 4:].astype(float))
+    else:
+        raise ValueError("Invalid dataset name.")
     return seq_ids, img_ids, tvecs, rotmats
 
 
@@ -253,12 +273,13 @@ def read_tfmat(tfmat_path: Path) -> Tuple[np.ndarray, np.ndarray]:
 
 
 def compute_scene_dims(
-    scene_path: Path, margin_ratio: float = 0.2, dataset: str = "AmbiguousReloc"
+    scene_path: Path, dataset: str = "AmbiguousReloc", margin_ratio: float = 0.2
 ) -> torch.Tensor:
     """Compute scene dimensions and write them onto text file.
 
     Args:
         scene_path: path to the sequence that contains scene.txt file
+        dataset: dataset that the scene belongs to
         margin_ratio: ratio of dim width that margin is set to
 
     Returns:
@@ -268,11 +289,18 @@ def compute_scene_dims(
     if dataset == "AmbiguousReloc":
         poses_paths = scene_path.glob("**/poses_seq*.txt")
         positions = np.concatenate(
-            [read_poses(poses_path)[2] for poses_path in poses_paths]
+            [read_poses(poses_path, dataset)[2] for poses_path in poses_paths]
         )
     elif dataset == "SevenScenes":
         pose_paths = scene_path.glob("**/*.pose.txt")
         positions = np.vstack([read_tfmat(pose_path)[0] for pose_path in pose_paths])
+    elif dataset == "CambridgeLandmarks":
+        positions = np.concatenate(
+            [
+                read_poses(scene_path / split_file_path, dataset)[2]
+                for split_file_path in ("dataset_train.txt", "dataset_test.txt")
+            ]
+        )
     else:
         raise ValueError("Invalid dataset name.")
 
