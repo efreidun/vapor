@@ -88,7 +88,7 @@ def plot_mixture_model(
     show_image(
         fig,
         grid_spec[r[1] : r[1] + h, c[0] : c[0] + w],
-        "samples from posterior",
+        "mixture components",
         render,
     )
     plot_tra_dists_on_plane(
@@ -487,8 +487,8 @@ def plot_tra_dists_on_plane(
     if tra_gt is not None:
         ax.scatter(*tra_gt.T[:2], s=100, marker="*", color=z_cm.to_rgba(tra_gt.T[2]))
 
-    radii = 50 * np.mean(tra_stds, axis=1)
-    coeffs /= np.sum(coeffs)
+    radii = np.mean(tra_stds, axis=1)
+    coeffs = coeffs * 0.8 + 0.2
     for tra, radius, coeff in zip(tra_locs, radii, coeffs):
         ax.add_patch(
             Circle(
@@ -547,8 +547,8 @@ def plot_rot_dists_on_plane(
         ax.scatter(*hopf_gt.T[:2], s=100, marker="*", color=s1_cm.to_rgba(hopf_gt.T[2]))
 
     hopf_locs = quat_to_hopf(quat_locs)
-    radii = -20 * (np.mean(quat_lams, axis=1) ** -1)
-    coeffs /= np.sum(coeffs)
+    radii = -5*(np.mean(quat_lams, axis=1) ** -1)
+    coeffs = coeffs * 0.8 + 0.2
     for hopf, radius, coeff in zip(hopf_locs, radii, coeffs):
         ax.add_patch(
             Circle(
