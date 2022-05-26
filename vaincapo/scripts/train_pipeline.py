@@ -12,12 +12,12 @@ from torch.utils.data import DataLoader
 from torch.optim import Adam
 import wandb
 
-from vaincapo.data import AmbiguousReloc
+from vaincapo.data import AmbiguousReloc, SevenScenes, CambridgeLandmarks
 from vaincapo.models import Encoder, PoseMap
 from vaincapo.read_write import read_scene_dims, compute_scene_dims
 from vaincapo.utils import schedule_warmup, rotmat_to_quat
 from vaincapo.inference import forward_pass
-from vaincapo.losses import chordal_to_geodesic
+from vaincapo.losses import chordal_to_geodesic, euclidean_dist, geodesic_dist
 from vaincapo.evaluation import (
     evaluate_tras_likelihood,
     evaluate_rots_likelihood,
@@ -34,11 +34,13 @@ def parse_arguments() -> dict:
     parser = argparse.ArgumentParser(
         description="Train camera pose posterior inference pipeline."
     )
+    parser.add_argument("--dataset", type=str)
     parser.add_argument("--sequence", type=str)
     parser.add_argument("--load_encoder", type=str, default=None)
     parser.add_argument("--load_posemap", type=str, default=None)
     parser.add_argument("--epochs", type=int, default=1000)
     parser.add_argument("--lr", type=float, default=1e-4)
+    parser.add_argument("--weight_decay", type=float, default=0.0)
     parser.add_argument("--batch_size", type=int, default=16)
     parser.add_argument("--image_size", type=int, default=64)
     parser.add_argument("--image_mode", type=str, default="resize")
@@ -89,35 +91,32 @@ def main(config: dict) -> None:
     wandb.save(str(run_path / "config.yaml"))
 
     device = cfg.device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    scene_path = Path.home() / "data/Ambiguous_ReLoc_Dataset" / cfg.sequence
+    scene_path = Path.home() / "data" / cfg.dataset / cfg.sequence
     try:
         scene_dims = read_scene_dims(scene_path)
     except FileNotFoundError:
-        scene_dims = compute_scene_dims(scene_path)
-    train_set = AmbiguousReloc(
-        scene_path / "train",
-        cfg.image_size,
-        cfg.image_mode,
-        cfg.image_crop,
-        cfg.gauss_kernel,
-        cfg.gauss_sigma,
-        cfg.jitter_brightness,
-        cfg.jitter_contrast,
-        cfg.jitter_saturation,
-        cfg.jitter_hue,
-    )
-    valid_set = AmbiguousReloc(
-        scene_path / "test",
-        cfg.image_size,
-        cfg.image_mode,
-        cfg.image_crop,
-        cfg.gauss_kernel,
-        cfg.gauss_sigma,
-        cfg.jitter_brightness,
-        cfg.jitter_contrast,
-        cfg.jitter_saturation,
-        cfg.jitter_hue,
-    )
+        scene_dims = compute_scene_dims(scene_path, cfg.dataset)
+    dataset_cfg = {
+        "image_size": cfg.image_size,
+        "mode": cfg.image_mode,
+        "crop": cfg.image_crop,
+        "gauss_kernel": cfg.gauss_kernel,
+        "gauss_sigma": cfg.gauss_sigma,
+        "jitter_brightness": cfg.jitter_brightness,
+        "jitter_contrast": cfg.jitter_contrast,
+        "jitter_saturation": cfg.jitter_saturation,
+        "jitter_hue": cfg.jitter_hue,
+    }
+    if cfg.dataset == "AmbiguousReloc":
+        DataSet = AmbiguousReloc
+    elif cfg.dataset == "SevenScenes":
+        DataSet = SevenScenes
+    elif cfg.dataset == "CambridgeLandmarks":
+        DataSet = CambridgeLandmarks
+    else:
+        raise ValueError("Invalid dataset.")
+    train_set = DataSet(scene_path / "train", **dataset_cfg)
+    valid_set = DataSet(scene_path / "test", **dataset_cfg)
 
     train_loader = DataLoader(
         train_set,
@@ -132,7 +131,7 @@ def main(config: dict) -> None:
         num_workers=cfg.num_workers,
     )
 
-    encoder = Encoder(cfg.latent_dim)
+    encoder = Encoder(cfg.latent_dim, cfg.image_size)
     if cfg.load_encoder is not None:
         encoder.load_state_dict(
             torch.load(
@@ -153,7 +152,11 @@ def main(config: dict) -> None:
     wandb.watch(encoder)
     wandb.watch(posemap)
 
-    optimizer = Adam(list(encoder.parameters()) + list(posemap.parameters()), lr=cfg.lr)
+    optimizer = Adam(
+        list(encoder.parameters()) + list(posemap.parameters()),
+        lr=cfg.lr,
+        weight_decay=cfg.weight_decay,
+    )
 
     epochs_digits = len(str(cfg.epochs))
     for epoch in tqdm(range(cfg.epochs)):
@@ -218,6 +221,12 @@ def main(config: dict) -> None:
                 "train_rot_loss": chordal_to_geodesic(rot_loss, deg=True).item(),
                 "train_tra_log_likelihood": tra_log_likelihood.item(),
                 "train_rot_log_likelihood": rot_log_likelihood.item(),
+                "train_med_tra_loss": torch.median(
+                    torch.median(euclidean_dist(tra_hat, tra), dim=1)[0]
+                ).item(),
+                "train_med_rot_loss": torch.median(
+                    torch.median(geodesic_dist(rot_hat, rot, deg=True), dim=1)[0]
+                ).item(),
             }
             for j, (tra_thr, rot_thr) in enumerate(recall_thresholds):
                 wandb_log[f"train_recall_{tra_thr}m_{rot_thr}deg"] = recalls[j]
@@ -294,6 +303,12 @@ def main(config: dict) -> None:
                 "valid_rot_loss": chordal_to_geodesic(rot_loss, deg=True).item(),
                 "valid_tra_log_likelihood": tra_log_likelihood.item(),
                 "valid_rot_log_likelihood": rot_log_likelihood.item(),
+                "valid_med_tra_loss": torch.median(
+                    torch.median(euclidean_dist(tra_hat, tra), dim=1)[0]
+                ).item(),
+                "valid_med_rot_loss": torch.median(
+                    torch.median(geodesic_dist(rot_hat, rot, deg=True), dim=1)[0]
+                ).item(),
             }
             for j, (tra_thr, rot_thr) in enumerate(recall_thresholds):
                 wandb_log[f"valid_recall_{tra_thr}m_{rot_thr}deg"] = recalls[j]
