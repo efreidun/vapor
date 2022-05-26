@@ -233,7 +233,28 @@ def read_poses(
     return seq_ids, img_ids, tvecs, rotmats
 
 
-def compute_scene_dims(scene_path: Path, margin_ratio: float = 0.2) -> torch.Tensor:
+def read_tfmat(tfmat_path: Path) -> Tuple[np.ndarray, np.ndarray]:
+    """Read a 4x4 transformation matrix from text file.
+
+    Args:
+        tfmat_path: path to the transformation matrix text file
+
+    Returns:
+        translation vector, shape (3,)
+        rotation matrix, shape (3, 3)
+    """
+    with open(tfmat_path) as f:
+        content = f.readlines()
+    tfmat = np.array(
+        [[float(entry) for entry in line.strip().split()] for line in content],
+        dtype=np.float32,
+    )
+    return tfmat[:3, 3], tfmat[:3, :3]
+
+
+def compute_scene_dims(
+    scene_path: Path, margin_ratio: float = 0.2, dataset: str = "AmbiguousReloc"
+) -> torch.Tensor:
     """Compute scene dimensions and write them onto text file.
 
     Args:
@@ -244,10 +265,17 @@ def compute_scene_dims(scene_path: Path, margin_ratio: float = 0.2) -> torch.Ten
         2D array with rows containing minimum, maximum and margin values repectively,
         and columns the x, y, z axes, shape (3, 3)
     """
-    poses_paths = scene_path.glob("**/poses_seq*.txt")
-    positions = np.concatenate(
-        [read_poses(poses_path)[2] for poses_path in poses_paths]
-    )
+    if dataset == "AmbiguousReloc":
+        poses_paths = scene_path.glob("**/poses_seq*.txt")
+        positions = np.concatenate(
+            [read_poses(poses_path)[2] for poses_path in poses_paths]
+        )
+    elif dataset == "SevenScenes":
+        pose_paths = scene_path.glob("**/*.pose.txt")
+        positions = np.vstack([read_tfmat(pose_path)[0] for pose_path in pose_paths])
+    else:
+        raise ValueError("Invalid dataset name.")
+
     mins = np.min(positions, axis=0)
     maxs = np.max(positions, axis=0)
     margins = margin_ratio * (maxs - mins)

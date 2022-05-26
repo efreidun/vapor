@@ -19,7 +19,133 @@ from torchvision.transforms import (
 )
 from tqdm import tqdm
 
-from vaincapo.read_write import read_poses
+from vaincapo.read_write import read_poses, read_tfmat
+
+
+class SevenScenes(Dataset):
+    """Dataset class for the 7-Scenes dataset."""
+
+    def __init__(
+        self,
+        root_path: Path,
+        image_size: int,
+        mode: str = "resize",
+        crop: Optional[float] = None,
+        gauss_kernel: Optional[int] = None,
+        gauss_sigma: Optional[Union[float, Tuple[float, float]]] = None,
+        jitter_brightness: Optional[float] = None,
+        jitter_contrast: Optional[float] = None,
+        jitter_saturation: Optional[float] = None,
+        jitter_hue: Optional[float] = None,
+    ) -> None:
+        """Construct the ambiguous relocalisation dataset class.
+
+        Args:
+            root_path: path of the root directory of the data split
+            image_size: image size (images are made square)
+            mode: how image is made smaller,
+                options: "resize", "random_crop", "vertical_crop", "center_crop"
+            crop: what ratio of original height and width is cropped
+            gauss_kernel: size of Gaussian blur kernel
+            gauss_sigma: [min and max of] std dev for creating Gaussian blur kernel
+            jitter_brightness: brightness jitter
+            jitter_contrast: contrast jitter
+            jitter_saturation: saturation jitter
+            jitter_hue: hue jitter
+        """
+        seq_paths = [root_path / seq for seq in sorted(next(os.walk(root_path))[1])]
+
+        self._img_paths = [
+            img_path
+            for seq_path in seq_paths
+            for img_path in seq_path.glob("*.color.png")
+        ]
+        self._names = [
+            str(img_path.relative_to(root_path)) for img_path in self._img_paths
+        ]
+        pose_paths = [
+            Path(str(img_path).replace("color.png", "pose.txt"))
+            for img_path in self._img_paths
+        ]
+
+        print("Preparing dataset...")
+        tvecs = []
+        rotmats = []
+        for pose_path in tqdm(pose_paths):
+            tvec, rotmat = read_tfmat(pose_path)
+            tvecs.append(tvec[None, :])
+            rotmats.append(rotmat[None, :, :])
+        tvecs = np.concatenate(tvecs)
+        rotmats = np.concatenate(rotmats)
+        self._poses = torch.from_numpy(
+            np.concatenate((tvecs, rotmats.reshape(-1, 9)), axis=1)
+        )
+
+        transforms = [ToTensor()]
+        if crop is not None:
+            print(f"Images are cropped by {crop} of its height and width")
+            height, width = self._images.shape[2:]
+            transforms.append(RandomCrop((int(crop * height), int(crop * width))))
+        if mode == "resize":
+            print(f"Images are resized to {image_size}x{image_size}")
+            transforms.append(Resize((image_size, image_size)))
+        elif mode == "center_crop":
+            print(f"Images are center cropped to {image_size}x{image_size}")
+            transforms.append(CenterCrop(image_size))
+        else:
+            if mode == "vertical_crop":
+                print(f"Images are cropped such that smallest edge is {image_size}")
+                transforms.append(Resize(image_size))
+            print(f"Images are random cropped to {image_size}x{image_size}")
+            transforms.append(RandomCrop((image_size, image_size)))
+        if gauss_kernel is not None and gauss_sigma is not None:
+            print(
+                f"Gaussian blur of kernel size {gauss_kernel}"
+                + f" and std dev {gauss_sigma} is applied"
+            )
+            transforms.append(GaussianBlur(gauss_kernel, sigma=gauss_sigma))
+        if (
+            jitter_brightness is not None
+            and jitter_contrast is not None
+            and jitter_saturation is not None
+            and jitter_hue is not None
+        ):
+            print(
+                f"Color jitter of {jitter_brightness} brightness,"
+                + f" {jitter_contrast} contrast,"
+                + f" {jitter_saturation} saturation, and {jitter_hue} hue is applied"
+            )
+            transforms.append(
+                ColorJitter(
+                    brightness=jitter_brightness,
+                    contrast=jitter_contrast,
+                    saturation=jitter_saturation,
+                    hue=jitter_hue,
+                )
+            )
+        self._transform = Compose(transforms)
+
+    def __len__(self) -> int:
+        """Get total number of samples."""
+        return len(self._img_paths)
+
+    def __getitem__(self, index: int) -> Tuple[torch.Tensor, torch.Tensor, str]:
+        """Get sample by index.
+
+        Args:
+            sample index
+
+        Returns:
+            image tensor, shape (3, H, W),
+            image pose, shape (12,)
+                formatted as (tx, ty, tz, r11, r12, r13, r21, r22, r23, r31, r32, r33),
+            image name
+        """
+        return (
+            self._transform(Image.open(self._img_paths[index])),
+            self._poses[index],
+            self._names[index],
+        )
 
 
 class AmbiguousReloc(Dataset):
