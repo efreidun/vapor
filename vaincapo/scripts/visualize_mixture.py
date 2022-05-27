@@ -46,7 +46,8 @@ def main(config: dict) -> None:
                 f"{'test' if split == 'valid' else 'train'}/" + data["names"][i]
             )
             query_file_name = scene + "/" + name_with_split
-            plot_path = plots_path / (name_with_split[:-4] + "_mixture.png")
+            plot_path = plots_path / name_with_split
+            plot_path = plot_path.parent / "mixture" / plot_path.name
             plot_path.parent.mkdir(parents=True, exist_ok=True)
             plot_mixture_model(
                 np.array(Image.open(dataset_path / query_file_name)),
