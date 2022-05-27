@@ -75,6 +75,7 @@ def read_rendered_samples(
 
 
 def write_metrics(
+    median_errors: List[List[float]],
     recalls: List[List[List[float]]],
     tra_log_likelihoods: List[List[torch.Tensor]],
     rot_log_likelihoods: List[List[torch.Tensor]],
@@ -89,6 +90,8 @@ def write_metrics(
     """Write evaluation results in metrics.txt.
 
     Args:
+        median_errors: recorded median errors,
+            if in array, has shape (num_splits, 2)
         recalls: recorded recalls,
             if in array, has shape (num_splits, num_min_samples, num_thresholds)
         tra_log_likelihoods: recorded translation log-likelihoods,
@@ -145,6 +148,16 @@ def write_metrics(
 
     with open(run_path / "metrics.txt", "w") as f:
         f.write(header + "\n")
+        f.write(
+            ", ".join(
+                [
+                    f"{split_name} median {quant} error: {err:.2f}"
+                    for split_name, errs in zip(split_names, median_errors)
+                    for quant, err in zip(("tra", "rot"), errs)
+                ]
+            )
+            + "\n"
+        )
         for row in results_matrix:
             f.write("\t".join([val.ljust(6) for val in row]) + "\n")
 

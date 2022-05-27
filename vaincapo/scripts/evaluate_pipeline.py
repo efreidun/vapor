@@ -2,6 +2,7 @@
 
 from pathlib import Path
 from types import SimpleNamespace
+from vaincapo.losses import euclidean_dist, geodesic_dist
 import yaml
 
 import argparse
@@ -10,7 +11,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 import numpy as np
 
-from vaincapo.data import AmbiguousReloc
+from vaincapo.data import AmbiguousReloc, SevenScenes, CambridgeLandmarks
 from vaincapo.models import Encoder, PoseMap
 from vaincapo.inference import forward_pass
 from vaincapo.utils import rotmat_to_quat
@@ -50,8 +51,8 @@ def parse_arguments() -> dict:
 
 def main(config: dict) -> None:
     recall_thresholds = [[0.1, 10.0], [0.2, 15.0], [0.3, 20.0], [1.0, 60.0]]
-    kde_gaussian_sigmas = np.linspace(0.01, 0.50, num=100, endpoint=True)
-    kde_bingham_lambdas = np.linspace(100.0, 400.0, num=100, endpoint=True)
+    kde_gaussian_sigmas = np.linspace(0.01, 0.50, num=10, endpoint=True)
+    kde_bingham_lambdas = np.linspace(100.0, 400.0, num=10, endpoint=True)
     recall_min_samples = [1, 5, 10, 15, 20, 25, 50, 75, 100, 200]
 
     cfg = SimpleNamespace(**config)
@@ -62,35 +63,32 @@ def main(config: dict) -> None:
 
     torch.set_grad_enabled(False)
     device = cfg.device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    scene_path = Path.home() / "data/Ambiguous_ReLoc_Dataset" / train_cfg.sequence
+    scene_path = Path.home() / "data" / train_cfg.dataset / train_cfg.sequence
     try:
         scene_dims = read_scene_dims(scene_path)
     except FileNotFoundError:
-        scene_dims = compute_scene_dims(scene_path)
-    train_set = AmbiguousReloc(
-        scene_path / "train",
-        train_cfg.image_size,
-        train_cfg.image_mode,
-        train_cfg.image_crop,
-        train_cfg.gauss_kernel,
-        train_cfg.gauss_sigma,
-        train_cfg.jitter_brightness,
-        train_cfg.jitter_contrast,
-        train_cfg.jitter_saturation,
-        train_cfg.jitter_hue,
-    )
-    valid_set = AmbiguousReloc(
-        scene_path / "test",
-        train_cfg.image_size,
-        train_cfg.image_mode,
-        train_cfg.image_crop,
-        train_cfg.gauss_kernel,
-        train_cfg.gauss_sigma,
-        train_cfg.jitter_brightness,
-        train_cfg.jitter_contrast,
-        train_cfg.jitter_saturation,
-        train_cfg.jitter_hue,
-    )
+        scene_dims = compute_scene_dims(scene_path, train_cfg.dataset)
+    dataset_cfg = {
+        "image_size": train_cfg.image_size,
+        "mode": train_cfg.image_mode,
+        "crop": train_cfg.image_crop,
+        "gauss_kernel": train_cfg.gauss_kernel,
+        "gauss_sigma": train_cfg.gauss_sigma,
+        "jitter_brightness": train_cfg.jitter_brightness,
+        "jitter_contrast": train_cfg.jitter_contrast,
+        "jitter_saturation": train_cfg.jitter_saturation,
+        "jitter_hue": train_cfg.jitter_hue,
+    }
+    if train_cfg.dataset == "AmbiguousReloc":
+        DataSet = AmbiguousReloc
+    elif train_cfg.dataset == "SevenScenes":
+        DataSet = SevenScenes
+    elif train_cfg.dataset == "CambridgeLandmarks":
+        DataSet = CambridgeLandmarks
+    else:
+        raise ValueError("Invalid dataset.")
+    train_set = DataSet(scene_path / "train", **dataset_cfg)
+    valid_set = DataSet(scene_path / "test", **dataset_cfg)
 
     if cfg.epoch is None:
         encoder_path = sorted(run_path.glob("encoder_*.pth"))[-1]
@@ -111,6 +109,8 @@ def main(config: dict) -> None:
     recalls = []
     tra_log_likelihoods = []
     rot_log_likelihoods = []
+    median_errors = []
+
     split_sets = {"train": train_set, "valid": valid_set}
     for split_name, split_set in split_sets.items():
         dataloader = DataLoader(
@@ -186,7 +186,18 @@ def main(config: dict) -> None:
             ]
         )
 
-        if split_name == "valid":
+        median_errors.append(
+            [
+                torch.median(
+                    torch.median(euclidean_dist(tra_hat, tra), dim=1)[0]
+                ).item(),
+                torch.median(
+                    torch.median(geodesic_dist(rot_hat, rot, deg=True), dim=1)[0]
+                ).item(),
+            ]
+        )
+
+        if train_cfg.dataset == "AmbiguousReloc" and split_name == "valid":
             write_sample_transforms(
                 tra_hat.cpu().numpy(),
                 rot_hat.cpu().numpy(),
@@ -198,6 +209,7 @@ def main(config: dict) -> None:
             )
 
     write_metrics(
+        median_errors,
         recalls,
         tra_log_likelihoods,
         rot_log_likelihoods,
