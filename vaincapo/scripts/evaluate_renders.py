@@ -25,6 +25,7 @@ def parse_arguments() -> dict:
     parser.add_argument("run", type=str)
     parser.add_argument("--height", type=int)
     parser.add_argument("--width", type=int)
+    parser.add_argument("--dataset", type=str, default="dataset")
     parser.add_argument("--source", type=str, default="pipeline")
     parser.add_argument("--reference", type=str, default="render")
     args = parser.parse_args()
@@ -53,7 +54,7 @@ def main(config: dict) -> None:
         "image",
         "render",
     ), "Reference has to be either 'image' or 'render'"
-    scene_path = Path.home() / "data/Ambiguous_ReLoc_Dataset" / scene
+    scene_path = Path.home() / "data" / cfg.dataset / scene
 
     sample_renders, query_images, query_renders = read_rendered_samples(
         run_path / "transforms.json",

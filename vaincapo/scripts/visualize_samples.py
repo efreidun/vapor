@@ -24,9 +24,11 @@ def parse_arguments() -> dict:
     )
     parser.add_argument("run", type=str)
     parser.add_argument("--num_samples", type=int, default=10)
+    parser.add_argument("--dataset", type=str, default="dataset")
     parser.add_argument("--source", type=str, default="pipeline")
     parser.add_argument("--query", type=int, nargs="+")
     parser.add_argument("--split", type=str, nargs="+", default=["valid"])
+    parser.add_argument("--norender", action="store_true")
     args = parser.parse_args()
 
     return vars(args)
@@ -35,7 +37,7 @@ def parse_arguments() -> dict:
 def main(config: dict) -> None:
     cfg = SimpleNamespace(**config)
     base_path = Path.home() / "code/vaincapo"
-    dataset_path = Path.home() / "data/Ambiguous_ReLoc_Dataset"
+    dataset_path = Path.home() / "data" / cfg.dataset
     assert cfg.source in (
         "pipeline",
         "bingham",
@@ -53,7 +55,8 @@ def main(config: dict) -> None:
 
     for split in cfg.split:
         data = np.load(run_path / f"{split}.npz")
-        if split == "valid":
+        plot_renders = split == "valid" and not cfg.norender
+        if plot_renders:
             sample_renders, query_images, query_renders = read_rendered_samples(
                 run_path / "transforms.json",
                 run_path / "renders",
@@ -71,15 +74,15 @@ def main(config: dict) -> None:
             plot_path.parent.mkdir(parents=True, exist_ok=True)
             plot_posterior(
                 query_images[i]
-                if split == "valid"
+                if plot_renders
                 else np.array(Image.open(dataset_path / query_file_name)),
                 data["tra_samples"][i],
                 data["rot_samples"][i],
                 cfg.num_samples,
                 scene_path,
                 cfg.run + " : " + query_file_name[:-4],
-                query_renders[i] if split == "valid" else None,
-                sample_renders[i, : cfg.num_samples] if split == "valid" else None,
+                query_renders[i] if plot_renders else None,
+                sample_renders[i, : cfg.num_samples] if plot_renders else None,
                 data["tra_gt"][i],
                 data["rot_gt"][i],
                 plot_path,

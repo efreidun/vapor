@@ -29,7 +29,7 @@ def main(config: dict) -> None:
     if source_path.suffix == ".ply":
         mesh_path = source_path
     else:
-        scene_path = Path.home() / "data/Ambiguous_ReLoc_Dataset" / source_path
+        scene_path = Path.home() / "data/AmbiguousReloc" / source_path
         mesh_path = scene_path / "mesh.ply"
         if not mesh_path.is_file():
             raise ValueError(f"Cannot find 'mesh.ply' in scene {source_path}")

@@ -31,7 +31,7 @@ def parse_arguments() -> dict:
 def main(config: dict) -> None:
     cfg = SimpleNamespace(**config)
     base_path = Path.home() / "code/vaincapo"
-    dataset_path = Path.home() / "data/Ambiguous_ReLoc_Dataset"
+    dataset_path = Path.home() / "data/AmbiguousReloc"
     run_path = base_path / "bingham_runs" / cfg.run
     scene = "_".join(cfg.run.split("_")[:-1])
     scene_path = dataset_path / scene

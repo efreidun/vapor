@@ -27,6 +27,7 @@ def parse_arguments() -> dict:
         description="Evaluate camera pose posterior samples."
     )
     parser.add_argument("run", type=str)
+    parser.add_argument("--dataset", type=str, default="AmbiguousReloc")
     parser.add_argument("--num_renders", type=int, default=10)
     args = parser.parse_args()
 
@@ -41,8 +42,6 @@ def main(config: dict) -> None:
 
     cfg = SimpleNamespace(**config)
     run_path = Path.home() / "code/vaincapo/bingham_runs" / cfg.run
-    scene = "_".join(cfg.run.split("_")[:-1])
-    scene_path = Path.home() / "data/Ambiguous_ReLoc_Dataset" / scene
 
     recalls = []
     tra_log_likelihoods = []
@@ -91,6 +90,8 @@ def main(config: dict) -> None:
         )
 
         if split_name == "valid":
+            scene = "_".join(cfg.run.split("_")[:-1])
+            scene_path = Path.home() / "data" / cfg.dataset / scene
             write_sample_transforms(
                 tra_hat.cpu().numpy(),
                 rot_hat.cpu().numpy(),
