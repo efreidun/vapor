@@ -55,7 +55,7 @@ class CambridgeLandmarks(Dataset):
         """
         print("Preparing dataset...")
         seq_ids, img_ids, tvecs, rotmats = read_poses(
-            split_file_path, dataset="CambridgeLandmarks"
+            split_file_path, "CambridgeLandmarks"
         )
 
         self._img_paths = [
@@ -249,7 +249,7 @@ class AmbiguousReloc(Dataset):
         tvecs = []
         rotmats = []
         for poses_path in poses_paths:
-            seq_id, img_id, tvec, rotmat = read_poses(poses_path)
+            seq_id, img_id, tvec, rotmat = read_poses(poses_path, "AmbiguousReloc")
             seq_ids.append(seq_id)
             img_ids.append(img_id)
             tvecs.append(tvec)

@@ -107,7 +107,7 @@ def main(config: dict) -> None:
     for seq_path in tqdm(seq_paths):
         if cfg.dataset == "AmbiguousReloc":
             poses_path = seq_path / f"poses_{seq_path.stem}.txt"
-            _, img_ids, positions, rotmats = read_poses(poses_path)
+            _, img_ids, positions, rotmats = read_poses(poses_path, cfg.dataset)
             img_paths = [
                 seq_path / f"rgb_matched/frame-color-{str(img_id).zfill(4)}.png"
                 for img_id in img_ids
