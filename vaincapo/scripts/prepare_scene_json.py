@@ -88,7 +88,7 @@ def main(config: dict) -> None:
             "cy": 240,
             "w": 640,
             "h": 480,
-            "aabb_scale": 4,
+            "aabb_scale": 1,
         }
     params["camera_angle_x"] = np.arctan(params["w"] / (params["fl_x"] * 2)) * 2
     params["camera_angle_y"] = np.arctan(params["h"] / (params["fl_y"] * 2)) * 2
@@ -96,11 +96,13 @@ def main(config: dict) -> None:
     scene_path = dataset_path / cfg.scene
     split_names = cfg.split
     split_paths = [scene_path / split for split in split_names]
-    seq_paths = [
-        split_path / seq
-        for split_path in split_paths
-        for seq in next(os.walk(split_path))[1]
-    ]
+    seq_paths = sorted(
+        [
+            split_path / seq
+            for split_path in split_paths
+            for seq in next(os.walk(split_path))[1]
+        ]
+    )
     frames = []
     for seq_path in tqdm(seq_paths):
         if cfg.dataset == "AmbiguousReloc":
@@ -120,8 +122,8 @@ def main(config: dict) -> None:
             rotmats = []
             for pose_path in pose_paths:
                 position, rotmat = read_tfmat(pose_path)
-            positions.append(position)
-            rotmats.append(rotmat)
+                positions.append(position)
+                rotmats.append(rotmat)
         else:
             raise ValueError("Invalid dataset name.")
 
