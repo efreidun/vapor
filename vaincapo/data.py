@@ -336,7 +336,8 @@ def create_transforms(
         to_tensor: if True, ToTensor transform is included
         image_size: image size (images are made square)
         mode: how image is made smaller,
-            options: "resize", "random_crop", "vertical_crop", "center_crop"
+            options: "resize", "random_crop", "vertical_crop", "center_crop", "posenet"
+            mode "posenet" overrides image_size and crop to that of posenet
         crop: what ratio of original height and width is cropped
         gauss_kernel: size of Gaussian blur kernel
         gauss_sigma: [min and max of] std dev for creating Gaussian blur kernel
@@ -346,23 +347,32 @@ def create_transforms(
         jitter_hue: hue jitter
     """
     transforms = [ToTensor()] if to_tensor else []
-    if crop is not None:
-        print(f"Images are cropped by {crop} of its height and width")
-        transforms.append(RandomCrop((int(crop * height), int(crop * width))))
-    if mode == "resize":
-        print(f"Images are resized to {image_size}x{image_size}")
-        transforms.append(Resize((image_size, image_size)))
-    elif mode == "center_crop":
-        print(f"Images are center cropped to {image_size}x{image_size}")
-        transforms.append(CenterCrop(image_size))
-    elif mode == "random_crop" or mode == "vertical_crop":
-        if mode == "vertical_crop":
-            print(f"Images are cropped such that smallest edge is {image_size}")
-            transforms.append(Resize(image_size))
-        print(f"Images are random cropped to {image_size}x{image_size}")
-        transforms.append(RandomCrop((image_size, image_size)))
+    if mode == "posenet":
+        print(
+            "Following PoseNet images are resized to smallest edge 256,"
+            + " then random cropped to 224x224"
+        )
+        transforms.extend([Resize(256), RandomCrop(224)])
+
     else:
-        raise ValueError("Invalid image resizing mode.")
+        if crop is not None:
+            print(f"Images are cropped by {crop} of its height and width")
+            transforms.append(RandomCrop((int(crop * height), int(crop * width))))
+        if mode == "resize":
+            print(f"Images are resized to {image_size}x{image_size}")
+            transforms.append(Resize((image_size, image_size)))
+        elif mode == "center_crop":
+            print(f"Images are center cropped to {image_size}x{image_size}")
+            transforms.append(CenterCrop(image_size))
+        elif mode == "random_crop" or mode == "vertical_crop":
+            if mode == "vertical_crop":
+                print(f"Images are cropped such that smallest edge is {image_size}")
+                transforms.append(Resize(image_size))
+            print(f"Images are random cropped to {image_size}x{image_size}")
+            transforms.append(RandomCrop(image_size))
+        else:
+            raise ValueError("Invalid image resizing mode.")
+
     if gauss_kernel is not None and gauss_sigma is not None:
         print(
             f"Gaussian blur of kernel size {gauss_kernel}"
