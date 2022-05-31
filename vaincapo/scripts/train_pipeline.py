@@ -10,6 +10,7 @@ from tqdm import tqdm
 import torch
 from torch.utils.data import DataLoader
 from torch.optim import Adam
+from torch.optim.lr_scheduler import ExponentialLR
 import wandb
 
 from vaincapo.data import AmbiguousReloc, SevenScenes, CambridgeLandmarks
@@ -38,10 +39,12 @@ def parse_arguments() -> dict:
     parser.add_argument("--sequence", type=str)
     parser.add_argument("--load_encoder", type=str, default=None)
     parser.add_argument("--load_posemap", type=str, default=None)
-    parser.add_argument("--epochs", type=int, default=1000)
+    parser.add_argument("--epochs", type=int, default=500)
     parser.add_argument("--lr", type=float, default=1e-4)
-    parser.add_argument("--weight_decay", type=float, default=0.0)
-    parser.add_argument("--batch_size", type=int, default=16)
+    parser.add_argument("--scheduler_gamma", type=float, default=0.7)
+    parser.add_argument("--scheduler_step", type=int, default=50)
+    parser.add_argument("--weight_decay", type=float, default=0.5)
+    parser.add_argument("--batch_size", type=int, default=4)
     parser.add_argument("--image_size", type=int, default=64)
     parser.add_argument("--image_mode", type=str, default="resize")
     parser.add_argument("--image_crop", type=float, default=0.9)
@@ -52,18 +55,20 @@ def parse_arguments() -> dict:
     parser.add_argument("--jitter_saturation", type=float, default=0.05)
     parser.add_argument("--jitter_hue", type=float, default=0.05)
     parser.add_argument("--latent_dim", type=int, default=16)
+    parser.add_argument("--map_depth", type=int, default=5)
+    parser.add_argument("--map_breadth", type=int, default=128)
     parser.add_argument("--num_samples", type=int, default=1000)
     parser.add_argument("--top_percent", type=float, default=0.2)
-    parser.add_argument("--tra_weight", type=float, default=10)
-    parser.add_argument("--rot_weight", type=float, default=1)
+    parser.add_argument("--tra_weight", type=float, default=5)
+    parser.add_argument("--rot_weight", type=float, default=2)
     parser.add_argument("--wta_weight", type=float, default=1)
-    parser.add_argument("--kld_warmup_start", type=int, default=50)
-    parser.add_argument("--kld_warmup_period", type=int, default=50)
-    parser.add_argument("--kld_max_weight", type=float, default=0.1)
+    parser.add_argument("--kld_warmup_start", type=int, default=0)
+    parser.add_argument("--kld_warmup_period", type=int, default=0)
+    parser.add_argument("--kld_max_weight", type=float, default=0.01)
     parser.add_argument("--kde_gaussian_sigma", type=float, default=0.1)
     parser.add_argument("--kde_bingham_lambda", type=float, default=40.0)
     parser.add_argument("--recall_min_samples", type=int, default=20)
-    parser.add_argument("--num_workers", type=int, default=2)
+    parser.add_argument("--num_workers", type=int, default=8)
     parser.add_argument("--device", type=str)
     args = parser.parse_args()
 
@@ -131,7 +136,7 @@ def main(config: dict) -> None:
         num_workers=cfg.num_workers,
     )
 
-    encoder = Encoder(cfg.latent_dim, cfg.image_size)
+    encoder = Encoder(cfg.latent_dim)
     if cfg.load_encoder is not None:
         encoder.load_state_dict(
             torch.load(
@@ -139,7 +144,7 @@ def main(config: dict) -> None:
                 map_location=device,
             )
         )
-    posemap = PoseMap(cfg.latent_dim)
+    posemap = PoseMap(cfg.latent_dim, cfg.map_depth, cfg.map_breadth)
     if cfg.load_posemap is not None:
         posemap.load_state_dict(
             torch.load(
@@ -153,10 +158,14 @@ def main(config: dict) -> None:
     wandb.watch(posemap)
 
     optimizer = Adam(
-        list(encoder.parameters()) + list(posemap.parameters()),
+        [
+            {"params": encoder.parameters(), "weight_decay": cfg.weight_decay},
+            {"params": posemap.parameters(), "weight_decay": 0.0},
+        ],
         lr=cfg.lr,
         weight_decay=cfg.weight_decay,
     )
+    scheduler = ExponentialLR(optimizer, cfg.scheduler_gamma)
 
     epochs_digits = len(str(cfg.epochs))
     for epoch in tqdm(range(cfg.epochs)):
@@ -231,6 +240,9 @@ def main(config: dict) -> None:
             for j, (tra_thr, rot_thr) in enumerate(recall_thresholds):
                 wandb_log[f"train_recall_{tra_thr}m_{rot_thr}deg"] = recalls[j]
             wandb.log(wandb_log)
+
+        if epoch != 0 and epoch % cfg.scheduler_gamma == 0:
+            scheduler.step()
 
         encoder.eval()
         posemap.eval()

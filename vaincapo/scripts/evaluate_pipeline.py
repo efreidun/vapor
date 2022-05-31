@@ -99,7 +99,7 @@ def main(config: dict) -> None:
 
     encoder = Encoder(train_cfg.latent_dim)
     encoder.load_state_dict(torch.load(encoder_path, map_location=device))
-    posemap = PoseMap(train_cfg.latent_dim)
+    posemap = PoseMap(train_cfg.latent_dim, train_cfg.map_depth, train_cfg.map_breadth)
     posemap.load_state_dict(torch.load(posemap_path, map_location=device))
     encoder.to(device)
     posemap.to(device)
