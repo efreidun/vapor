@@ -4,6 +4,7 @@ from typing import Optional, Tuple, Union
 
 import torch
 import torch.nn as nn
+from torchvision import models
 
 
 def tran_conv_layer(
@@ -40,6 +41,7 @@ def conv_layer(
     stride: int = 1,
     padding: int = 0,
     activation: Optional[nn.Module] = None,
+    batch_norm: bool = False,
 ) -> nn.Module:
     """Sequence of a convolutional layer with optional activation.
 
@@ -50,6 +52,7 @@ def conv_layer(
         stride: convolution operation stride
         padding: padding size of the input before convolution operation
         activation: optional activation after the layer
+        batch_norm: if True, BatchNorm2d layers are added
 
     Returns:
         sequential_layer: created sequential layer
@@ -61,8 +64,10 @@ def conv_layer(
             kernel_size=kernel_size,
             padding=padding,  # (kernel_size - 1) // 2,
             stride=stride,
-        )
+        ),
     ]
+    if batch_norm:
+        layers.append(nn.BatchNorm2d(out_features))
     if activation is not None:
         layers.append(activation)
     sequential_layer = nn.Sequential(*layers)
@@ -95,22 +100,15 @@ class Encoder(nn.Module):
     def __init__(self, latent_dim):
         super().__init__()
         self._latent_dim = latent_dim
-        self.conv1 = conv_layer(3, 32, 4, 2, 1, nn.ReLU())  # (32, 32, 32)
-        self.conv2 = conv_layer(32, 32, 4, 2, 1, nn.ReLU())  # (32, 16, 16)
-        self.conv3 = conv_layer(32, 64, 4, 2, 1, nn.ReLU())  # (64, 8, 8)
-        self.conv4 = conv_layer(64, 64, 4, 2, 1, nn.ReLU())  # (64, 4, 4)
-        self.conv5 = conv_layer(64, 256, 4, 1, 0, nn.ReLU())  # (256, 1, 1)
-        self.linear = linear_layer(256, 128, nn.ReLU())  # (128,)
-        self.mu = linear_layer(128, latent_dim)  # (latent_dim,)
-        self.logvar = linear_layer(128, latent_dim)  # (latent_dim,)
+        self.model = models.resnet34(pretrained=True)
+        fe_out_planes = self.model.fc.in_features
+        self.model.avgpool = nn.AdaptiveAvgPool2d(1)
+        self.model.fc = linear_layer(fe_out_planes, 2048, nn.ReLU())
+        self.mu = linear_layer(2048, latent_dim)  # (latent_dim,)
+        self.logvar = linear_layer(2048, latent_dim)  # (latent_dim,)
 
     def forward(self, batch):
-        batch = self.conv1(batch)
-        batch = self.conv2(batch)
-        batch = self.conv3(batch)
-        batch = self.conv4(batch)
-        batch = self.conv5(batch).reshape(-1, 256)
-        batch = self.linear(batch)
+        batch = self.model(batch)
         mu = self.mu(batch)
         logvar = self.mu(batch)
 
@@ -150,28 +148,22 @@ class Decoder(nn.Module):
 class PoseMap(nn.Module):
     """Class for pose latent to SE(3) map."""
 
-    def __init__(self, latent_dim: int) -> None:
+    def __init__(self, latent_dim: int, depth: int, breadth: int) -> None:
         """Initialize the map.
 
         Args:
             latent_dim: number of latent dimensions
+            depth: number of hidden layers
+            breadth: number of neurons in hidden layers
         """
         super().__init__()
         self._latent_dim = latent_dim
-        self.fc1 = linear_layer(latent_dim, 128, nn.ReLU())
-        self.fc2 = linear_layer(128, 256, nn.ReLU())
-        self.fc3 = linear_layer(256, 256, nn.ReLU())
-        self.fc4 = linear_layer(256, 256, nn.ReLU())
-        self.fc5 = linear_layer(256, 256, nn.ReLU())
-        self.fc6 = linear_layer(256, 256, nn.ReLU())
-        self.fc7 = linear_layer(256, 256, nn.ReLU())
-        self.fc8 = linear_layer(256, 256, nn.ReLU())
-        self.fc9 = linear_layer(256, 256, nn.ReLU())
-        self.fc10 = linear_layer(256, 256, nn.ReLU())
-        self.fc11 = linear_layer(256, 256, nn.ReLU())
-        self.fc12 = linear_layer(256, 128, nn.ReLU())
-        self.fc_tvec = linear_layer(128, 3, nn.Sigmoid())
-        self.fc_rvec = linear_layer(128, 6)
+        self.input_layer = linear_layer(latent_dim, breadth, nn.ReLU())
+        self.layers = nn.ModuleList(
+            [linear_layer(breadth, breadth, nn.ReLU()) for _ in range(depth)]
+        )
+        self.fc_tvec = linear_layer(breadth, 3, nn.Sigmoid())
+        self.fc_rvec = linear_layer(breadth, 6)
 
     def forward(self, z: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         """Forward pass of the map.
@@ -183,18 +175,9 @@ class PoseMap(nn.Module):
             tvec: translation vector, shape (N, 3)
             rvec: orientation continous 6D representation, shape (N, 6)
         """
-        batch = self.fc1(z)
-        batch = self.fc2(batch)
-        batch = self.fc3(batch)
-        batch = self.fc4(batch)
-        batch = self.fc5(batch)
-        batch = self.fc6(batch)
-        batch = self.fc7(batch)
-        batch = self.fc8(batch)
-        batch = self.fc9(batch)
-        batch = self.fc10(batch)
-        batch = self.fc11(batch)
-        batch = self.fc12(batch)
+        batch = self.input_layer(z)
+        for layer in self.layers:
+            batch = layer(batch)
         tvec = self.fc_tvec(batch)
         rvec = self.fc_rvec(batch)
 
