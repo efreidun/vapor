@@ -145,11 +145,11 @@ class SevenScenes(Dataset):
         print("Preparing dataset...")
         seq_paths = [root_path / seq for seq in sorted(next(os.walk(root_path))[1])]
 
-        self._img_paths = [
+        self._img_paths = sorted([
             img_path
             for seq_path in seq_paths
             for img_path in seq_path.glob("*.color.png")
-        ]
+        ])
         self._names = [
             str(img_path.relative_to(root_path)) for img_path in self._img_paths
         ]
