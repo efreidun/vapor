@@ -104,7 +104,10 @@ class BMM:
         if type(num_samples) is int:
             comp_counts = Counter(
                 np.random.choice(
-                    len(self._comps), num_samples, replace=True, p=self._weights
+                    len(self._comps),
+                    num_samples,
+                    replace=True,
+                    p=self._weights.cpu().numpy(),
                 )
             )
             num_samples = np.zeros(len(self._comps), dtype=int)
