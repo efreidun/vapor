@@ -207,3 +207,48 @@ def get_ingp_transform(tvec: np.ndarray, rotmat: np.ndarray) -> np.ndarray:
     transform[:, 2, :] *= -1  # flip whole world upside down
 
     return transform
+
+
+def average_pose(tra_hat: torch.Tensor, rot_hat: torch.Tensor) -> torch.Tensor:
+    """Compute the average pose of a number of samples.
+
+    L2 mean is computed for translations and chordal L2 mean for rotations.
+    Ref "Rotation averaging" by Hartley et al (2013).
+
+    Args:
+        tra_hat: translation samples, shape (N, M, 3)
+        rot_hat: rotation matrix samples, shape (N, M, 3, 3)
+
+    Returns:
+        average translation, shape (N, 3),
+        average rotation, shape (N, 3, 3)
+    """
+    tra = torch.mean(tra_hat, dim=1)
+    rot = torch.cat([chordal_l2_mean(R)[None, :, :] for R in rot_hat])
+
+    return tra, rot
+
+
+def chordal_l2_mean(rot_samples: torch.Tensor) -> torch.Tensor:
+    """Compute the a single rotation average of many samples.
+
+    Chordal L2 mean for rotations as done in "Rotation averaging" Hartley et al (2013).
+
+    Args:
+        rot_samples: rotation matrix samples, shape (N, 3, 3)
+
+    Returns:
+        average rotation, shape (3, 3)
+    """
+    C = torch.sum(rot_samples, dim=0)
+    U, _, Vt = torch.linalg.svd(C)
+
+    S = U @ Vt
+    if torch.linalg.det(S) < 0:
+        S = (
+            U
+            @ torch.diag(torch.tensor([1.0, 1.0, -1.0], device=rot_samples.device))
+            @ Vt
+        )
+
+    return S
