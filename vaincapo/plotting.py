@@ -14,6 +14,132 @@ from vaincapo.utils import quat_to_hopf
 from vaincapo.read_write import read_scene_dims
 
 
+def plot_latent(
+    tras_train: np.ndarray,
+    tras_valid: np.ndarray,
+    quats_train: np.ndarray,
+    quats_valid: np.ndarray,
+    codes_train: np.ndarray,
+    codes_valid: np.ndarray,
+    scene_path: Path,
+    title: Optional[str],
+    save: Optional[Union[Path, str]] = None,
+) -> plt.Figure:
+    """Plot many samples drawn from a posterior distribution.
+
+    Args:
+        tras_train: training set translations, (N, 3)
+        tras_valid: validation set translations, (M, 3)
+        quats_train: training set rotation matrices, (N, 3, 3)
+        quats_valid: validation set rotation matrices, (M, 3, 3)
+        codes_train: training set latent codes, (N, 2)
+        codes_valid: validation set latent codes, (M, 2)
+        scene_path: path to the scene that contains scene.txt
+        title: title of figure
+        save: save path including file extension
+
+    Returns:
+        figure instance
+    """
+    scene_dims = read_scene_dims(scene_path)
+
+    fig = plt.figure(figsize=(20, 10))
+    fig.suptitle(title)
+    r = [0, 50]
+    c = [0, 25, 50, 75]
+    w = 25
+    h = 40
+    grid_spec = GridSpec(100, 100)
+
+    # first row of subplots, training samples
+    try:
+        render = render_3d(
+            scene_path,
+            tras_train,
+            quats_train,
+        )
+        show_image(
+            fig,
+            grid_spec[r[0] : r[0] + h, c[0] : c[0] + w],
+            "training samples",
+            render,
+        )
+    except AttributeError:
+        pass
+    cmap = mpl.cm.gist_rainbow
+    norm = mpl.colors.Normalize(vmin=0, vmax=len(tras_train))
+    colormap = mpl.cm.ScalarMappable(norm=norm, cmap=cmap)
+    plot_tra_colored_on_plane(
+        fig,
+        grid_spec[r[0] : r[0] + h, c[1] : c[1] + w],
+        "translation components",
+        scene_dims,
+        tras_train,
+        colormap,
+    )
+    plot_rot_colored_on_plane(
+        fig,
+        grid_spec[r[0] : r[0] + h, c[2] : c[2] + w],
+        "rotation components",
+        quats_train,
+        colormap,
+    )
+    plot_code_colored_on_plane(
+        fig,
+        grid_spec[r[0] : r[0] + h, c[3] : c[3] + w],
+        "latent codes",
+        codes_train,
+        colormap,
+    )
+
+    # second row of subplots, validation samples
+    try:
+        render = render_3d(
+            scene_path,
+            tras_valid,
+            quats_valid,
+        )
+        show_image(
+            fig,
+            grid_spec[r[1] : r[1] + h, c[0] : c[0] + w],
+            "validation samples",
+            render,
+        )
+    except AttributeError:
+        pass
+    cmap = mpl.cm.gist_rainbow
+    norm = mpl.colors.Normalize(vmin=0, vmax=len(tras_valid))
+    colormap = mpl.cm.ScalarMappable(norm=norm, cmap=cmap)
+    plot_tra_colored_on_plane(
+        fig,
+        grid_spec[r[1] : r[1] + h, c[1] : c[1] + w],
+        "translation components",
+        scene_dims,
+        tras_valid,
+        colormap,
+    )
+    plot_rot_colored_on_plane(
+        fig,
+        grid_spec[r[1] : r[1] + h, c[2] : c[2] + w],
+        "rotation components",
+        quats_valid,
+        colormap,
+    )
+    plot_code_colored_on_plane(
+        fig,
+        grid_spec[r[1] : r[1] + h, c[3] : c[3] + w],
+        "latent codes",
+        codes_valid,
+        colormap,
+    )
+
+    if save is not None:
+        print(f"Saving plot {save}")
+        fig.savefig(save)
+
+    return fig
+
+
 def plot_mixture_model(
     query_image: np.ndarray,
     tra_locs: np.ndarray,
@@ -78,19 +204,22 @@ def plot_mixture_model(
     )
 
     # second row of subplots, projecive view and individual samples
-    render = render_3d(
-        scene_path,
-        tra_locs,
-        quat_locs,
-        tra_gt,
-        quat_gt,
-    )
-    show_image(
-        fig,
-        grid_spec[r[1] : r[1] + h, c[0] : c[0] + w],
-        "mixture components",
-        render,
-    )
+    try:
+        render = render_3d(
+            scene_path,
+            tra_locs,
+            quat_locs,
+            tra_gt,
+            quat_gt,
+        )
+        show_image(
+            fig,
+            grid_spec[r[1] : r[1] + h, c[0] : c[0] + w],
+            "mixture components",
+            render,
+        )
+    except AttributeError:
+        pass
     plot_tra_dists_on_plane(
         fig,
         grid_spec[r[1] : r[1] + h, c[1] : c[1] + w],
@@ -165,40 +294,39 @@ def plot_posterior(
         "query image",
         query_image,
     )
-    plot_tra_samples_on_plane(
+    plot_tra_hist_on_plane(
         fig,
         grid_spec[r[0] : r[0] + h, c[1] : c[1] + w],
         "translations posterior",
         scene_dims,
         tra_samples,
         tra_gt[None, :],
-        None,
-        grid_spec[r[0] : r[0] + h, c[1] + w + cb_o : c[1] + w + cb_o + cb_w],
     )
-    plot_rot_samples_on_plane(
+    plot_rot_hist_on_plane(
         fig,
         grid_spec[r[0] : r[0] + h, c[2] : c[2] + w],
         "rotation posterior",
         quat_samples,
         quat_gt[None, :],
-        None,
-        grid_spec[r[0] : r[0] + h, c[2] + w + cw_o : c[2] + w + cw_o + cw_w],
     )
 
     # second row of subplots, projecive view and individual samples
-    render = render_3d(
-        scene_path,
-        tra_samples[:num_samples],
-        quat_samples[:num_samples],
-        tra_gt,
-        quat_gt,
-    )
-    show_image(
-        fig,
-        grid_spec[r[1] : r[1] + h, c[0] : c[0] + w],
-        "samples from posterior",
-        render,
-    )
+    try:
+        render = render_3d(
+            scene_path,
+            tra_samples[:num_samples],
+            quat_samples[:num_samples],
+            tra_gt,
+            quat_gt,
+        )
+        show_image(
+            fig,
+            grid_spec[r[1] : r[1] + h, c[0] : c[0] + w],
+            "samples from posterior",
+            render,
+        )
+    except AttributeError:
+        pass
     plot_tra_samples_on_plane(
         fig,
         grid_spec[r[1] : r[1] + h, c[1] : c[1] + w],
@@ -323,7 +451,7 @@ def plot_tra_samples_on_plane(
     markers: Optional[Iterable[str]] = None,
     cm_position: Optional[SubplotSpec] = None,
 ) -> None:
-    """Plot rotation samples on a 2D plane.
+    """Plot translation samples on a 2D plane.
 
     Translation samples are plotted on a plane, with height of shown by a color map.
 
@@ -547,7 +675,7 @@ def plot_rot_dists_on_plane(
         ax.scatter(*hopf_gt.T[:2], s=100, marker="*", color=s1_cm.to_rgba(hopf_gt.T[2]))
 
     hopf_locs = quat_to_hopf(quat_locs)
-    radii = -5*(np.mean(quat_lams, axis=1) ** -1)
+    radii = -5 * (np.mean(quat_lams, axis=1) ** -1)
     coeffs = coeffs * 0.8 + 0.2
     for hopf, radius, coeff in zip(hopf_locs, radii, coeffs):
         ax.add_patch(
@@ -569,3 +697,181 @@ def plot_rot_dists_on_plane(
         cb.outline.set_visible(False)
         cm_ax.set_axis_off()
         cm_ax.set_rlim([-1, 1])
+
+
+def plot_tra_hist_on_plane(
+    figure: plt.Figure,
+    position: SubplotSpec,
+    title: str,
+    scene_dims: np.ndarray,
+    tra_samples: np.ndarray,
+    tra_gt: Optional[np.ndarray] = None,
+) -> None:
+    """Plot translation samples in a histogram on a 2D plane.
+
+    Z-axis is marginalized.
+
+    Args:
+        figure: figure instance on which plot is made in-place
+        position: subplot position on the figure
+        title: title of the subplot
+        scene_dims:
+            2D array with rows containing minimum, maximum and margin values repectively
+            and columns the x, y, z axes, shape (3, 3)
+        tra_samples: translation samples to be plotted, shape (N, 3)
+        tra_gt: groundtruth translations plotted as circles, shape (M, 3)
+    """
+    tra_mins = scene_dims[0] - scene_dims[2]
+    tra_maxs = scene_dims[1] + scene_dims[2]
+    xlim = [tra_mins[0], tra_maxs[0]]
+    ylim = [tra_mins[1], tra_maxs[1]]
+
+    ax = figure.add_subplot(position)
+    ax.set_xlim(xlim)
+    ax.set_ylim(ylim)
+    ax.set_aspect("equal")
+    ax.set_title(title)
+    ax.set_xticks([])
+    ax.set_yticks([])
+
+    ax.hist2d(*tra_samples.T[:2], bins=50, range=[xlim, ylim])
+
+    if tra_gt is not None:
+        ax.scatter(*tra_gt.T[:2], s=20, color="red")
+
+
+def plot_rot_hist_on_plane(
+    figure: plt.Figure,
+    position: SubplotSpec,
+    title: str,
+    quat_samples: np.ndarray,
+    quat_gt: Optional[np.ndarray] = None,
+) -> None:
+    """Plot rotation samples in a histogram on a 2D plane.
+
+    Rotation samples are converted to Hopf coordinates, S^2 element of which is
+    projected onto a 2D plane using Mollweide projection, and the S^1 element
+    marginalized.
+
+    Args:
+        figure: figure instance on which plot is made in-place
+        position: subplot position on the figure
+        title: title of the subplot
+        quat_samples: samples to be plotted in quaternions [w, x, y, z], shape (N, 4)
+        quat_gt: groundtruth quaternions [w, x, y, z] plotted as circles, shape (M, 4)
+    """
+    ax = figure.add_subplot(position, projection="mollweide")
+    ax.grid(True)
+    ax.set_title(title)
+    ax.set_xticklabels([])
+    ax.set_yticklabels([])
+    hopf_samples = quat_to_hopf(quat_samples)
+    hist, phi_edges, theta_edges = np.histogram2d(
+        *hopf_samples.T[:2],
+        bins=50,
+        range=[[-np.pi, np.pi], [-np.pi / 2, np.pi / 2]],
+    )
+    ax.pcolor(
+        phi_edges[:-1],
+        theta_edges[:-1],
+        hist.T,  # transpose from (row, column) to (x, y)
+        cmap=mpl.cm.viridis,
+        shading="auto",
+        vmin=0,
+        vmax=np.max(hist),
+    )
+    if quat_gt is not None:
+        hopf_gt = quat_to_hopf(quat_gt)
+        ax.scatter(*hopf_gt.T[:2], s=20, color="red")
+
+
+def plot_tra_colored_on_plane(
+    figure: plt.Figure,
+    position: SubplotSpec,
+    title: str,
+    scene_dims: np.ndarray,
+    tra_samples: np.ndarray,
+    colormap: mpl.cm.ScalarMappable,
+) -> None:
+    """Plot color-coded translation samples on a 2D plane.
+
+    Z-axis is marginalized.
+
+    Args:
+        figure: figure instance on which plot is made in-place
+        position: subplot position on the figure
+        title: title of the subplot
+        scene_dims:
+            2D array with rows containing minimum, maximum and margin values repectively
+            and columns the x, y, z axes, shape (3, 3)
+        tra_samples: translation samples to be plotted, shape (N, 3)
+        colormap: colormap used for coloring samples
+    """
+    tra_mins = scene_dims[0] - scene_dims[2]
+    tra_maxs = scene_dims[1] + scene_dims[2]
+
+    ax = figure.add_subplot(position)
+    ax.set_xlim([tra_mins[0], tra_maxs[0]])
+    ax.set_ylim([tra_mins[1], tra_maxs[1]])
+    ax.set_aspect("equal")
+    ax.set_title(title)
+    ax.set_xticks([])
+    ax.set_yticks([])
+    ax.scatter(
+        *tra_samples.T[:2], s=10, color=colormap.to_rgba(np.arange(len(tra_samples)))
+    )
+
+
+def plot_rot_colored_on_plane(
+    figure: plt.Figure,
+    position: SubplotSpec,
+    title: str,
+    quat_samples: np.ndarray,
+    colormap: mpl.cm.ScalarMappable,
+) -> None:
+    """Plot color-coded rotation samples on a 2D plane.
+
+    Rotation samples are converted to Hopf coordinates, S^2 element of which is
+    projected onto a 2D plane using Mollweide projection, and the S^1 element
+    marginalized.
+
+    Args:
+        figure: figure instance on which plot is made in-place
+        position: subplot position on the figure
+        title: title of the subplot
+        quat_samples: samples to be plotted in quaternions [w, x, y, z], shape (N, 4)
+        colormap: colormap used for coloring samples
+    """
+    ax = figure.add_subplot(position, projection="mollweide")
+    ax.grid(True)
+    ax.set_title(title)
+    ax.set_xticklabels([])
+    ax.set_yticklabels([])
+    hopf_samples = quat_to_hopf(quat_samples)
+    ax.scatter(
+        *hopf_samples.T[:2], s=10, color=colormap.to_rgba(np.arange(len(quat_samples)))
+    )
+
+
+def plot_code_colored_on_plane(
+    figure: plt.Figure,
+    position: SubplotSpec,
+    title: str,
+    codes: np.ndarray,
+    colormap: mpl.cm.ScalarMappable,
+) -> None:
+    """Plot color-coded latent encodings on a 2D plane.
+
+    Args:
+        figure: figure instance on which plot is made in-place
+        position: subplot position on the figure
+        title: title of the subplot
+        codes: latent encodings to be plotted, shape (N, 2)
+        colormap: colormap used for coloring samples
+    """
+    ax = figure.add_subplot(position)
+    ax.set_aspect("equal")
+    ax.set_title(title)
+    ax.set_xticks([])
+    ax.set_yticks([])
+    ax.scatter(*codes.T, s=10, color=colormap.to_rgba(np.arange(len(codes))))
