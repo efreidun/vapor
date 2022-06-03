@@ -145,11 +145,13 @@ class SevenScenes(Dataset):
         print("Preparing dataset...")
         seq_paths = [root_path / seq for seq in sorted(next(os.walk(root_path))[1])]
 
-        self._img_paths = sorted([
-            img_path
-            for seq_path in seq_paths
-            for img_path in seq_path.glob("*.color.png")
-        ])
+        self._img_paths = sorted(
+            [
+                img_path
+                for seq_path in seq_paths
+                for img_path in seq_path.glob("*.color.png")
+            ]
+        )
         self._names = [
             str(img_path.relative_to(root_path)) for img_path in self._img_paths
         ]
@@ -215,6 +217,7 @@ class AmbiguousReloc(Dataset):
         root_path: Path,
         image_size: int,
         mode: str = "resize",
+        half_image: bool = False,
         crop: Optional[float] = None,
         gauss_kernel: Optional[int] = None,
         gauss_sigma: Optional[Union[float, Tuple[float, float]]] = None,
@@ -228,6 +231,7 @@ class AmbiguousReloc(Dataset):
         Args:
             root_path: path of the root directory of the data split
             image_size: image size (images are made square)
+            half_image: if True, only lower half of the images is used
             mode: how image is made smaller,
                 options: "resize", "random_crop", "vertical_crop", "center_crop"
             crop: what ratio of original height and width is cropped
@@ -275,6 +279,8 @@ class AmbiguousReloc(Dataset):
                 for img_path in tqdm(img_paths)
             ]
         )
+        if half_image:
+            self._images = self._images[:, :, self._images.shape[2] // 2 :]
         self._names = [str(img_path.relative_to(root_path)) for img_path in img_paths]
 
         self._transform = create_transforms(
