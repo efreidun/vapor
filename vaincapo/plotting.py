@@ -390,7 +390,7 @@ def render_3d(
     else:
         # default vis camera
         vis_camera = o3d.io.read_pinhole_camera_parameters(
-            str(Path.home() / "data/AmbiguousReloc/blue_chairs/vis_camera.json")
+            str(Path.home() / "code/vaincapo/default_vis.json")
         )
         vis = o3d.visualization.Visualizer()
         vis.create_window(
@@ -398,6 +398,10 @@ def render_3d(
             height=vis_camera.intrinsic.height,
             visible=False,
         )
+        origin_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(
+            size=1.0, origin=[0.0, 0.0, 0.0]
+        )
+        vis.add_geometry(origin_frame)
 
     for tra, quat in zip(tra_samples, quat_samples):
         sample_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(

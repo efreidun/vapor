@@ -39,7 +39,7 @@ def main(config: dict) -> None:
     o3d.visualization.draw_geometries(
         [
             o3d.geometry.TriangleMesh.create_coordinate_frame(
-                size=0.1, origin=[0, 0, 0]
+                size=1.0, origin=[0, 0, 0]
             ),
             mesh,
         ]
