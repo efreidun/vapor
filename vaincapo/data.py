@@ -22,6 +22,131 @@ from tqdm import tqdm
 from vaincapo.read_write import read_poses, read_tfmat
 
 
+class SketchUpCircular(Dataset):
+    """Dataset class for circular camera movements in SketchUp."""
+
+    def __init__(
+        self,
+        root_path: Path,
+        split: str,
+        distance: float,
+        image_size: int,
+        mode: str = "resize",
+        crop: Optional[float] = None,
+        gauss_kernel: Optional[int] = None,
+        gauss_sigma: Optional[Union[float, Tuple[float, float]]] = None,
+        jitter_brightness: Optional[float] = None,
+        jitter_contrast: Optional[float] = None,
+        jitter_saturation: Optional[float] = None,
+        jitter_hue: Optional[float] = None,
+    ) -> None:
+        """Construct the cambridge landmarks dataset class.
+
+        Args:
+            root_path: path of the root directory of the dataset
+            split: either "train" or "valid"
+            distance: distance of camera along its principal axis from the origin
+            image_size: image size (images are made square)
+            mode: how image is made smaller,
+                options: "resize", "random_crop", "vertical_crop", "center_crop"
+            crop: what ratio of original height and width is cropped
+            gauss_kernel: size of Gaussian blur kernel
+            gauss_sigma: [min and max of] std dev for creating Gaussian blur kernel
+            jitter_brightness: brightness jitter
+            jitter_contrast: contrast jitter
+            jitter_saturation: saturation jitter
+            jitter_hue: hue jitter
+        """
+        img_paths = sorted(root_path.glob("img*.jpg"))
+        img_angles = 2 * np.pi / len(img_paths) * np.arange(len(img_paths))
+
+        # get the transformation for isometric view
+        sin = 1 / np.sqrt(3)
+        cos = np.sqrt(2) * sin
+        base_c2w = (
+            np.array([[cos, 0, sin, 0], [0, 1, 0, 0], [-sin, 0, cos, 0], [0, 0, 0, 1]])
+            @ np.array([[1, 0, 0, -distance], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]])
+            @ np.array([[0, 0, 1, 0], [0, 1, 0, 0], [-1, 0, 0, 0], [0, 0, 0, 1]])
+            @ np.array([[0, 1, 0, 0], [-1, 0, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]])
+        )
+        c2ws = np.concatenate(
+            [
+                (
+                    np.array(
+                        [
+                            [np.cos(theta), -np.sin(theta), 0, 0],
+                            [np.sin(theta), np.cos(theta), 0, 0],
+                            [0, 0, 1, 0],
+                            [0, 0, 0, 1],
+                        ]
+                    )
+                    @ base_c2w
+                )[None, ...]
+                for theta in img_angles
+            ]
+        )
+        tvecs = c2ws[:, :3, 3]
+        rotmats = c2ws[:, :3, :3]
+        images = torch.cat(
+            [
+                ToTensor()(Image.open(img_path))[None, ...]
+                for img_path in tqdm(img_paths)
+            ]
+        )
+        images = images[:, :, :, images.shape[3] // 4:-images.shape[3] // 4]
+        poses = torch.from_numpy(
+            np.concatenate((tvecs, rotmats.reshape(-1, 9)), axis=1)
+        )
+        names = [str(img_path.relative_to(root_path)) for img_path in img_paths]
+
+        if split == "train":
+            self._images = images[0::2]
+            self._poses = poses[0::2]
+            self._names = names[0::2]
+        elif split == "valid":
+            self._images = images[1::2]
+            self._poses = poses[1::2]
+            self._names = names[1::2]
+        else:
+            raise ValueError("Invalid split name.")
+
+        self._transform = create_transforms(
+            *self._images.shape[2:],
+            False,
+            image_size,
+            mode,
+            crop,
+            gauss_kernel,
+            gauss_sigma,
+            jitter_brightness,
+            jitter_contrast,
+            jitter_saturation,
+            jitter_hue,
+        )
+
+    def __len__(self) -> int:
+        """Get total number of samples."""
+        return len(self._images)
+
+    def __getitem__(self, index: int) -> Tuple[torch.Tensor, torch.Tensor, str]:
+        """Get sample by index.
+
+        Args:
+            sample index
+
+        Returns:
+            image tensor, shape (3, H, W),
+            image pose, shape (12,)
+                formatted as (tx, ty, tz, r11, r12, r13, r21, r22, r23, r31, r32, r33),
+            image name
+        """
+        return (
+            self._transform(self._images[index]),
+            self._poses[index],
+            self._names[index],
+        )
+
+
 class CambridgeLandmarks(Dataset):
     """Dataset class for the Cambridge Landmarks dataset."""
 
