@@ -14,7 +14,7 @@ import numpy as np
 from vaincapo.data import AmbiguousReloc, SevenScenes, CambridgeLandmarks
 from vaincapo.models import Encoder, PoseMap
 from vaincapo.inference import forward_pass
-from vaincapo.utils import rotmat_to_quat
+from vaincapo.utils import average_pose, rotmat_to_quat
 from vaincapo.read_write import (
     write_metrics,
     write_sample_transforms,
@@ -51,9 +51,9 @@ def parse_arguments() -> dict:
 
 def main(config: dict) -> None:
     recall_thresholds = [[0.1, 10.0], [0.2, 15.0], [0.3, 20.0], [1.0, 60.0]]
-    kde_gaussian_sigmas = np.linspace(0.01, 0.50, num=10, endpoint=True)
-    kde_bingham_lambdas = np.linspace(100.0, 400.0, num=10, endpoint=True)
-    recall_min_samples = [1, 5, 10, 15, 20, 25, 50, 75, 100, 200]
+    kde_gaussian_sigmas = np.linspace(0.01, 0.50, num=2, endpoint=True)
+    kde_bingham_lambdas = np.linspace(100.0, 400.0, num=2, endpoint=True)
+    recall_min_samples = [20]
 
     cfg = SimpleNamespace(**config)
     run_path = Path.home() / "code/vaincapo/runs" / cfg.run
@@ -94,8 +94,8 @@ def main(config: dict) -> None:
         encoder_path = sorted(run_path.glob("encoder_*.pth"))[-1]
         posemap_path = sorted(run_path.glob("posemap_*.pth"))[-1]
     else:
-        encoder_path = run_path / f"encoder_{cfg.epoch}.pth"
-        posemap_path = run_path / f"posemap_{cfg.epoch}.pth"
+        encoder_path = run_path / f"encoder_{str(cfg.epoch).zfill(3)}.pth"
+        posemap_path = run_path / f"posemap_{str(cfg.epoch).zfill(3)}.pth"
 
     encoder = Encoder(train_cfg.latent_dim)
     encoder.load_state_dict(torch.load(encoder_path, map_location=device))
@@ -186,13 +186,12 @@ def main(config: dict) -> None:
             ]
         )
 
+        tra_hat_point, rot_hat_point = average_pose(tra_hat, rot_hat)
         median_errors.append(
             [
+                torch.median(euclidean_dist(tra_hat_point[:, None, :], tra)).item(),
                 torch.median(
-                    torch.median(euclidean_dist(tra_hat, tra), dim=1)[0]
-                ).item(),
-                torch.median(
-                    torch.median(geodesic_dist(rot_hat, rot, deg=True), dim=1)[0]
+                    geodesic_dist(rot_hat_point[:, None, :], rot, deg=True)
                 ).item(),
             ]
         )
