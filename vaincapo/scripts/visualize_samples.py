@@ -2,7 +2,6 @@
 
 from pathlib import Path
 from types import SimpleNamespace
-from vaincapo.data import SketchUpCircular
 import yaml
 
 from PIL import Image

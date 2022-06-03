@@ -9,7 +9,12 @@ import torch
 from torch.utils.data import DataLoader
 from sklearn.manifold import TSNE
 
-from vaincapo.data import AmbiguousReloc, SevenScenes, CambridgeLandmarks, SketchUpCircular
+from vaincapo.data import (
+    AmbiguousReloc,
+    SevenScenes,
+    CambridgeLandmarks,
+    SketchUpCircular,
+)
 from vaincapo.models import Encoder
 from vaincapo.plotting import plot_latent
 from vaincapo.utils import rotmat_to_quat
@@ -117,7 +122,12 @@ def main(config: dict) -> None:
         codes_splits.append(codes)
 
     plot_latent(
-        *tras_splits, *quats_splits, *codes_splits, scene_path, cfg.run, run_path / "latents.png"
+        *tras_splits,
+        *quats_splits,
+        *codes_splits,
+        scene_path,
+        cfg.run,
+        run_path / "latents.png",
     )
 
 
