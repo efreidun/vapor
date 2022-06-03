@@ -29,9 +29,10 @@ class SketchUpCircular(Dataset):
         self,
         root_path: Path,
         split: str,
-        distance: float,
         image_size: int,
+        distance: float = 3.0,
         mode: str = "resize",
+        half_image: bool = False,
         crop: Optional[float] = None,
         gauss_kernel: Optional[int] = None,
         gauss_sigma: Optional[Union[float, Tuple[float, float]]] = None,
@@ -45,10 +46,11 @@ class SketchUpCircular(Dataset):
         Args:
             root_path: path of the root directory of the dataset
             split: either "train" or "valid"
-            distance: distance of camera along its principal axis from the origin
             image_size: image size (images are made square)
+            distance: distance of camera along its principal axis from the origin
             mode: how image is made smaller,
                 options: "resize", "random_crop", "vertical_crop", "center_crop"
+            half_image: if True, only center half of the images is used
             crop: what ratio of original height and width is cropped
             gauss_kernel: size of Gaussian blur kernel
             gauss_sigma: [min and max of] std dev for creating Gaussian blur kernel
@@ -93,10 +95,11 @@ class SketchUpCircular(Dataset):
                 for img_path in tqdm(img_paths)
             ]
         )
-        images = images[:, :, :, images.shape[3] // 4:-images.shape[3] // 4]
+        if half_image:
+            images = images[:, :, :, images.shape[3] // 4:-images.shape[3] // 4]
         poses = torch.from_numpy(
             np.concatenate((tvecs, rotmats.reshape(-1, 9)), axis=1)
-        )
+        ).float()
         names = [str(img_path.relative_to(root_path)) for img_path in img_paths]
 
         if split == "train":
@@ -356,9 +359,9 @@ class AmbiguousReloc(Dataset):
         Args:
             root_path: path of the root directory of the data split
             image_size: image size (images are made square)
-            half_image: if True, only lower half of the images is used
             mode: how image is made smaller,
                 options: "resize", "random_crop", "vertical_crop", "center_crop"
+            half_image: if True, only lower half of the images is used
             crop: what ratio of original height and width is cropped
             gauss_kernel: size of Gaussian blur kernel
             gauss_sigma: [min and max of] std dev for creating Gaussian blur kernel

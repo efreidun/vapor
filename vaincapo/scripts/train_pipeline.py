@@ -13,7 +13,12 @@ from torch.optim import Adam
 from torch.optim.lr_scheduler import ExponentialLR
 import wandb
 
-from vaincapo.data import AmbiguousReloc, SevenScenes, CambridgeLandmarks
+from vaincapo.data import (
+    AmbiguousReloc,
+    SevenScenes,
+    CambridgeLandmarks,
+    SketchUpCircular,
+)
 from vaincapo.models import Encoder, PoseMap
 from vaincapo.read_write import read_scene_dims, compute_scene_dims
 from vaincapo.utils import schedule_warmup, rotmat_to_quat
@@ -39,26 +44,27 @@ def parse_arguments() -> dict:
     parser.add_argument("--sequence", type=str)
     parser.add_argument("--load_encoder", type=str, default=None)
     parser.add_argument("--load_posemap", type=str, default=None)
-    parser.add_argument("--epochs", type=int, default=500)
+    parser.add_argument("--epochs", type=int, default=20)
     parser.add_argument("--lr", type=float, default=1e-4)
-    parser.add_argument("--scheduler_gamma", type=float, default=0.7)
-    parser.add_argument("--scheduler_step", type=int, default=50)
-    parser.add_argument("--weight_decay", type=float, default=0.5)
+    parser.add_argument("--scheduler_gamma", type=float, default=0.8)
+    parser.add_argument("--scheduler_step", type=int, default=1)
+    parser.add_argument("--weight_decay", type=float, default=0)
     parser.add_argument("--batch_size", type=int, default=4)
+    parser.add_argument("--half_image", action="store_true")
     parser.add_argument("--image_size", type=int, default=64)
     parser.add_argument("--image_mode", type=str, default="resize")
-    parser.add_argument("--image_crop", type=float, default=0.9)
+    parser.add_argument("--image_crop", type=float, default=None)
     parser.add_argument("--gauss_kernel", type=int, default=3)
     parser.add_argument("--gauss_sigma", type=float, default=(0.1, 1.0))
     parser.add_argument("--jitter_brightness", type=float, default=0.05)
     parser.add_argument("--jitter_contrast", type=float, default=0.05)
     parser.add_argument("--jitter_saturation", type=float, default=0.05)
     parser.add_argument("--jitter_hue", type=float, default=0.05)
-    parser.add_argument("--latent_dim", type=int, default=16)
+    parser.add_argument("--latent_dim", type=int, default=20)
     parser.add_argument("--map_depth", type=int, default=5)
     parser.add_argument("--map_breadth", type=int, default=128)
     parser.add_argument("--num_samples", type=int, default=1000)
-    parser.add_argument("--top_percent", type=float, default=0.2)
+    parser.add_argument("--top_percent", type=float, default=1.0)
     parser.add_argument("--tra_weight", type=float, default=5)
     parser.add_argument("--rot_weight", type=float, default=2)
     parser.add_argument("--wta_weight", type=float, default=1)
@@ -104,6 +110,7 @@ def main(config: dict) -> None:
     dataset_cfg = {
         "image_size": cfg.image_size,
         "mode": cfg.image_mode,
+        "half_image": cfg.half_image,
         "crop": cfg.image_crop,
         "gauss_kernel": cfg.gauss_kernel,
         "gauss_sigma": cfg.gauss_sigma,
@@ -118,10 +125,17 @@ def main(config: dict) -> None:
         DataSet = SevenScenes
     elif cfg.dataset == "CambridgeLandmarks":
         DataSet = CambridgeLandmarks
+    elif cfg.dataset == "SketchUpCircular":
+        pass
     else:
         raise ValueError("Invalid dataset.")
-    train_set = DataSet(scene_path / "train", **dataset_cfg)
-    valid_set = DataSet(scene_path / "test", **dataset_cfg)
+
+    if cfg.dataset == "SketchUpCircular":
+        train_set = SketchUpCircular(scene_path, "train", **dataset_cfg)
+        valid_set = SketchUpCircular(scene_path, "valid", **dataset_cfg)
+    else:
+        train_set = DataSet(scene_path / "train", **dataset_cfg)
+        valid_set = DataSet(scene_path / "test", **dataset_cfg)
 
     train_loader = DataLoader(
         train_set,
@@ -326,7 +340,7 @@ def main(config: dict) -> None:
                 wandb_log[f"valid_recall_{tra_thr}m_{rot_thr}deg"] = recalls[j]
             wandb.log(wandb_log)
 
-        if (epoch + 1) % 50 == 0:
+        if (epoch + 1) % (cfg.epochs / 10) == 0:
             torch.save(
                 encoder.state_dict(),
                 run_path / f"encoder_{str(epoch + 1).zfill(epochs_digits)}.pth",

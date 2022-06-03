@@ -314,6 +314,13 @@ def compute_scene_dims(
                 for split_file_path in ("dataset_train.txt", "dataset_test.txt")
             ]
         )
+    elif dataset == "SketchUpCircular":
+        sin = 1 / np.sqrt(3)
+        cos = np.sqrt(2) * sin
+        distance = 3
+        z = distance * sin
+        r = distance * cos
+        positions = np.array([[-r, -r, z - 0.1], [r, r, z + 0.1]])
     else:
         raise ValueError("Invalid dataset name.")
 
