@@ -52,20 +52,17 @@ def plot_latent(
     grid_spec = GridSpec(100, 100)
 
     # first row of subplots, training samples
-    try:
-        render = render_3d(
-            scene_path,
-            tras_train,
-            quats_train,
-        )
-        show_image(
-            fig,
-            grid_spec[r[0] : r[0] + h, c[0] : c[0] + w],
-            "training samples",
-            render,
-        )
-    except AttributeError:
-        pass
+    render = render_3d(
+        scene_path,
+        tras_train,
+        quats_train,
+    )
+    show_image(
+        fig,
+        grid_spec[r[0] : r[0] + h, c[0] : c[0] + w],
+        "training samples",
+        render,
+    )
     cmap = mpl.cm.gist_rainbow
     norm = mpl.colors.Normalize(vmin=0, vmax=len(tras_train))
     colormap = mpl.cm.ScalarMappable(norm=norm, cmap=cmap)
@@ -93,20 +90,17 @@ def plot_latent(
     )
 
     # second row of subplots, validation samples
-    try:
-        render = render_3d(
-            scene_path,
-            tras_valid,
-            quats_valid,
-        )
-        show_image(
-            fig,
-            grid_spec[r[1] : r[1] + h, c[0] : c[0] + w],
-            "validation samples",
-            render,
-        )
-    except AttributeError:
-        pass
+    render = render_3d(
+        scene_path,
+        tras_valid,
+        quats_valid,
+    )
+    show_image(
+        fig,
+        grid_spec[r[1] : r[1] + h, c[0] : c[0] + w],
+        "validation samples",
+        render,
+    )
     cmap = mpl.cm.gist_rainbow
     norm = mpl.colors.Normalize(vmin=0, vmax=len(tras_valid))
     colormap = mpl.cm.ScalarMappable(norm=norm, cmap=cmap)
@@ -204,22 +198,19 @@ def plot_mixture_model(
     )
 
     # second row of subplots, projecive view and individual samples
-    try:
-        render = render_3d(
-            scene_path,
-            tra_locs,
-            quat_locs,
-            tra_gt,
-            quat_gt,
-        )
-        show_image(
-            fig,
-            grid_spec[r[1] : r[1] + h, c[0] : c[0] + w],
-            "mixture components",
-            render,
-        )
-    except AttributeError:
-        pass
+    render = render_3d(
+        scene_path,
+        tra_locs,
+        quat_locs,
+        tra_gt,
+        quat_gt,
+    )
+    show_image(
+        fig,
+        grid_spec[r[1] : r[1] + h, c[0] : c[0] + w],
+        "mixture components",
+        render,
+    )
     plot_tra_dists_on_plane(
         fig,
         grid_spec[r[1] : r[1] + h, c[1] : c[1] + w],
@@ -311,22 +302,19 @@ def plot_posterior(
     )
 
     # second row of subplots, projecive view and individual samples
-    try:
-        render = render_3d(
-            scene_path,
-            tra_samples[:num_samples],
-            quat_samples[:num_samples],
-            tra_gt,
-            quat_gt,
-        )
-        show_image(
-            fig,
-            grid_spec[r[1] : r[1] + h, c[0] : c[0] + w],
-            "samples from posterior",
-            render,
-        )
-    except AttributeError:
-        pass
+    render = render_3d(
+        scene_path,
+        tra_samples[:num_samples],
+        quat_samples[:num_samples],
+        tra_gt,
+        quat_gt,
+    )
+    show_image(
+        fig,
+        grid_spec[r[1] : r[1] + h, c[0] : c[0] + w],
+        "samples from posterior",
+        render,
+    )
     plot_tra_samples_on_plane(
         fig,
         grid_spec[r[1] : r[1] + h, c[1] : c[1] + w],
@@ -385,18 +373,31 @@ def render_3d(
         tra_gt: groundtruth translation, shape (3,)
         quat_gt: groundtruth rotation in quaternion [w, x, y, z], shape (4,)
     """
-    vis_camera = o3d.io.read_pinhole_camera_parameters(
-        str(scene_path / "vis_camera.json")
-    )
-    vis = o3d.visualization.Visualizer()
-    vis.create_window(
-        width=vis_camera.intrinsic.width,
-        height=vis_camera.intrinsic.height,
-        visible=False,
-    )
-    mesh = o3d.io.read_triangle_mesh(str(scene_path / "mesh.ply"))
-    mesh.compute_vertex_normals()
-    vis.add_geometry(mesh)
+    mesh_path = scene_path / "mesh.ply"
+    if mesh_path.is_file():
+        vis_camera = o3d.io.read_pinhole_camera_parameters(
+            str(scene_path / "vis_camera.json")
+        )
+        vis = o3d.visualization.Visualizer()
+        vis.create_window(
+            width=vis_camera.intrinsic.width,
+            height=vis_camera.intrinsic.height,
+            visible=False,
+        )
+        mesh = o3d.io.read_triangle_mesh(str(mesh_path))
+        mesh.compute_vertex_normals()
+        vis.add_geometry(mesh)
+    else:
+        # default vis camera
+        vis_camera = o3d.io.read_pinhole_camera_parameters(
+            str(Path.home() / "data/AmbiguousReloc/blue_chairs/vis_camera.json")
+        )
+        vis = o3d.visualization.Visualizer()
+        vis.create_window(
+            width=vis_camera.intrinsic.width,
+            height=vis_camera.intrinsic.height,
+            visible=False,
+        )
 
     for tra, quat in zip(tra_samples, quat_samples):
         sample_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(
