@@ -11,7 +11,12 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 import numpy as np
 
-from vaincapo.data import AmbiguousReloc, SevenScenes, CambridgeLandmarks
+from vaincapo.data import (
+    AmbiguousReloc,
+    SevenScenes,
+    CambridgeLandmarks,
+    SketchUpCircular,
+)
 from vaincapo.models import Encoder, PoseMap
 from vaincapo.inference import forward_pass
 from vaincapo.utils import average_pose, rotmat_to_quat
@@ -85,10 +90,17 @@ def main(config: dict) -> None:
         DataSet = SevenScenes
     elif train_cfg.dataset == "CambridgeLandmarks":
         DataSet = CambridgeLandmarks
+    elif train_cfg.dataset == "SketchUpCircular":
+        pass
     else:
         raise ValueError("Invalid dataset.")
-    train_set = DataSet(scene_path / "train", **dataset_cfg)
-    valid_set = DataSet(scene_path / "test", **dataset_cfg)
+
+    if train_cfg.dataset == "SketchUpCircular":
+        train_set = SketchUpCircular(scene_path, "train", **dataset_cfg)
+        valid_set = SketchUpCircular(scene_path, "valid", **dataset_cfg)
+    else:
+        train_set = DataSet(scene_path / "train", **dataset_cfg)
+        valid_set = DataSet(scene_path / "test", **dataset_cfg)
 
     if cfg.epoch is None:
         encoder_path = sorted(run_path.glob("encoder_*.pth"))[-1]

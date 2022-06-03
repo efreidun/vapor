@@ -2,6 +2,7 @@
 
 from pathlib import Path
 from types import SimpleNamespace
+from vaincapo.data import SketchUpCircular
 import yaml
 
 from PIL import Image
@@ -69,7 +70,15 @@ def main(config: dict) -> None:
             name_with_split = (
                 f"{'test' if split == 'valid' else 'train'}/" + data["names"][i]
             )
-            query_file_name = scene + "/" + name_with_split
+            query_file_name = (
+                scene
+                + "/"
+                + (
+                    data["names"][i]
+                    if cfg.dataset == "SketchUpCircular"
+                    else name_with_split
+                )
+            )
             plot_path = plots_path / name_with_split
             plot_path.parent.mkdir(parents=True, exist_ok=True)
             plot_posterior(
