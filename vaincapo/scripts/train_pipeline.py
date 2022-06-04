@@ -61,6 +61,7 @@ def parse_arguments() -> dict:
     parser.add_argument("--jitter_saturation", type=float, default=0.05)
     parser.add_argument("--jitter_hue", type=float, default=0.05)
     parser.add_argument("--latent_dim", type=int, default=20)
+    parser.add_argument("--backbone", type=str, default="resnet18")
     parser.add_argument("--map_depth", type=int, default=5)
     parser.add_argument("--map_breadth", type=int, default=128)
     parser.add_argument("--num_samples", type=int, default=1000)
@@ -150,7 +151,7 @@ def main(config: dict) -> None:
         num_workers=cfg.num_workers,
     )
 
-    encoder = Encoder(cfg.latent_dim)
+    encoder = Encoder(cfg.latent_dim, cfg.backbone)
     if cfg.load_encoder is not None:
         encoder.load_state_dict(
             torch.load(

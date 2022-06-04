@@ -97,10 +97,15 @@ def linear_layer(
 
 
 class Encoder(nn.Module):
-    def __init__(self, latent_dim):
+    def __init__(self, latent_dim, backbone="resnet34"):
         super().__init__()
         self._latent_dim = latent_dim
-        self.model = models.resnet34(pretrained=True)
+        if backbone == "resnet18":
+            self.model = models.resnet18(pretrained=True)
+        elif backbone == "resnet34":
+            self.model = models.resnet34(pretrained=True)
+        else:
+            raise NotImplementedError("Invalid backbone.")
         fe_out_planes = self.model.fc.in_features
         self.model.avgpool = nn.AdaptiveAvgPool2d(1)
         self.model.fc = linear_layer(fe_out_planes, 2048, nn.ReLU())

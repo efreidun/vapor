@@ -109,7 +109,7 @@ def main(config: dict) -> None:
         encoder_path = run_path / f"encoder_{str(cfg.epoch).zfill(3)}.pth"
         posemap_path = run_path / f"posemap_{str(cfg.epoch).zfill(3)}.pth"
 
-    encoder = Encoder(train_cfg.latent_dim)
+    encoder = Encoder(train_cfg.latent_dim, train_cfg.backbone)
     encoder.load_state_dict(torch.load(encoder_path, map_location=device))
     posemap = PoseMap(train_cfg.latent_dim, train_cfg.map_depth, train_cfg.map_breadth)
     posemap.load_state_dict(torch.load(posemap_path, map_location=device))
