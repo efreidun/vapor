@@ -155,7 +155,7 @@ def main(config: dict) -> None:
     if cfg.load_encoder is not None:
         encoder.load_state_dict(
             torch.load(
-                runs_path / cfg.load_encoder / "encoder.pth",
+                sorted((runs_path / cfg.load_encoder).glob("encoder_*.pth"))[-1],
                 map_location=device,
             )
         )
@@ -163,7 +163,7 @@ def main(config: dict) -> None:
     if cfg.load_posemap is not None:
         posemap.load_state_dict(
             torch.load(
-                runs_path / cfg.load_map / "posemap.pth",
+                sorted((runs_path / cfg.load_posemap).glob("posemap_*.pth"))[-1],
                 map_location=device,
             )
         )

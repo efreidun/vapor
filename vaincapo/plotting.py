@@ -513,7 +513,7 @@ def plot_tra_samples_on_plane(
             ax.add_patch(
                 Circle(
                     xy=tra[:2],
-                    radius=0.1,
+                    radius=0.5,
                     linewidth=2,
                     facecolor="none",
                     edgecolor=z_cm.to_rgba(tra[2]),
