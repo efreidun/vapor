@@ -23,6 +23,7 @@ def plot_latent(
     codes_valid: np.ndarray,
     scene_path: Path,
     title: Optional[str],
+    color_latent: bool = False,
     save: Optional[Union[Path, str]] = None,
 ) -> plt.Figure:
     """Plot many samples drawn from a posterior distribution.
@@ -36,6 +37,7 @@ def plot_latent(
         codes_valid: validation set latent codes, (M, 2)
         scene_path: path to the scene that contains scene.txt
         title: title of figure
+        color_latent: if True, samples are colored based on t-SNE encodings
         save: save path including file extension
 
     Returns:
@@ -66,17 +68,20 @@ def plot_latent(
     cmap = mpl.cm.gist_rainbow
     norm = mpl.colors.Normalize(vmin=0, vmax=len(tras_train))
     colormap = mpl.cm.ScalarMappable(norm=norm, cmap=cmap)
-    train_ref = codes_train[
-        np.argmax(
-            np.linalg.norm(
-                codes_train - np.mean(codes_train, axis=0, keepdims=True), axis=1
+    if color_latent:
+        train_ref = codes_train[
+            np.argmax(
+                np.linalg.norm(
+                    codes_train - np.mean(codes_train, axis=0, keepdims=True), axis=1
+                )
             )
+        ]
+        train_sort = np.argsort(
+            np.linalg.norm(codes_train - train_ref[None, :], axis=1)
         )
-    ]
-    train_sort = np.argsort(np.linalg.norm(codes_train - train_ref[None, :], axis=1))
-    tras_train = tras_train[train_sort]
-    quats_train = quats_train[train_sort]
-    codes_train = codes_train[train_sort]
+        tras_train = tras_train[train_sort]
+        quats_train = quats_train[train_sort]
+        codes_train = codes_train[train_sort]
     plot_tra_colored_on_plane(
         fig,
         grid_spec[r[0] : r[0] + h, c[1] : c[1] + w],
@@ -115,17 +120,20 @@ def plot_latent(
     cmap = mpl.cm.gist_rainbow
     norm = mpl.colors.Normalize(vmin=0, vmax=len(tras_valid))
     colormap = mpl.cm.ScalarMappable(norm=norm, cmap=cmap)
-    valid_ref = codes_valid[
-        np.argmax(
-            np.linalg.norm(
-                codes_valid - np.mean(codes_valid, axis=0, keepdims=True), axis=1
+    if color_latent:
+        valid_ref = codes_valid[
+            np.argmax(
+                np.linalg.norm(
+                    codes_valid - np.mean(codes_valid, axis=0, keepdims=True), axis=1
+                )
             )
+        ]
+        valid_sort = np.argsort(
+            np.linalg.norm(codes_valid - valid_ref[None, :], axis=1)
         )
-    ]
-    valid_sort = np.argsort(np.linalg.norm(codes_valid - valid_ref[None, :], axis=1))
-    tras_valid = tras_valid[valid_sort]
-    quats_valid = quats_valid[valid_sort]
-    codes_valid = codes_valid[valid_sort]
+        tras_valid = tras_valid[valid_sort]
+        quats_valid = quats_valid[valid_sort]
+        codes_valid = codes_valid[valid_sort]
     plot_tra_colored_on_plane(
         fig,
         grid_spec[r[1] : r[1] + h, c[1] : c[1] + w],
