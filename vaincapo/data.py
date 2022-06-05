@@ -486,7 +486,7 @@ def create_transforms(
             "Following PoseNet images are resized to smallest edge 256,"
             + " then random cropped to 224x224"
         )
-        transforms.extend([Resize(256), RandomCrop(224)])
+        transforms.extend([Resize(256, antialias=True), RandomCrop(224)])
 
     else:
         if crop is not None:
@@ -494,14 +494,16 @@ def create_transforms(
             transforms.append(RandomCrop((int(crop * height), int(crop * width))))
         if mode == "resize":
             print(f"Images are resized to {image_size}x{image_size}")
-            transforms.append(Resize((image_size, image_size)))
+            transforms.append(Resize((image_size, image_size), antialias=True))
         elif mode == "center_crop":
+            print(f"Images are cropped such that smallest edge is {image_size}")
+            transforms.append(Resize(image_size, antialias=True))
             print(f"Images are center cropped to {image_size}x{image_size}")
             transforms.append(CenterCrop(image_size))
         elif mode == "random_crop" or mode == "vertical_crop":
             if mode == "vertical_crop":
                 print(f"Images are cropped such that smallest edge is {image_size}")
-                transforms.append(Resize(image_size))
+                transforms.append(Resize(image_size, antialias=True))
             print(f"Images are random cropped to {image_size}x{image_size}")
             transforms.append(RandomCrop(image_size))
         else:
