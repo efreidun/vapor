@@ -247,7 +247,11 @@ def chordal_l2_mean(rot_samples: torch.Tensor) -> torch.Tensor:
     if torch.linalg.det(S) < 0:
         S = (
             U
-            @ torch.diag(torch.tensor([1.0, 1.0, -1.0], device=rot_samples.device))
+            @ torch.diag(
+                torch.tensor(
+                    [1.0, 1.0, -1.0], device=rot_samples.device, dtype=rot_samples.dtype
+                )
+            )
             @ Vt
         )
 
