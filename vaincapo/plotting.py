@@ -33,8 +33,8 @@ def plot_latent(
         tras_valid: validation set translations, (M, 3)
         quats_train: training set rotation matrices, (N, 3, 3)
         quats_valid: validation set rotation matrices, (M, 3, 3)
-        codes_train: training set latent codes, (N, 2)
-        codes_valid: validation set latent codes, (M, 2)
+        codes_train: training set latent codes, (N, 2) or (N, K, 2)
+        codes_valid: validation set latent codes, (M, 2) or (M, L, 2)
         scene_path: path to the scene that contains scene.txt
         title: title of figure
         color_latent: if True, samples are colored based on t-SNE encodings
@@ -69,15 +69,21 @@ def plot_latent(
     norm = mpl.colors.Normalize(vmin=0, vmax=len(tras_train))
     colormap = mpl.cm.ScalarMappable(norm=norm, cmap=cmap)
     if color_latent:
-        train_ref = codes_train[
+        if len(codes_train.shape) == 2:
+            mu_train = codes_train
+        elif len(codes_train.shape) == 3:
+            mu_train = np.mean(codes_train, axis=1)
+        else:
+            raise ValueError("Invalid shape of latent codes.")
+        train_ref = mu_train[
             np.argmax(
                 np.linalg.norm(
-                    codes_train - np.mean(codes_train, axis=0, keepdims=True), axis=1
+                    mu_train - np.mean(mu_train, axis=0, keepdims=True), axis=1
                 )
             )
         ]
         train_sort = np.argsort(
-            np.linalg.norm(codes_train - train_ref[None, :], axis=1)
+            np.linalg.norm(mu_train - train_ref[None, :], axis=1)
         )
         tras_train = tras_train[train_sort]
         quats_train = quats_train[train_sort]
@@ -121,15 +127,21 @@ def plot_latent(
     norm = mpl.colors.Normalize(vmin=0, vmax=len(tras_valid))
     colormap = mpl.cm.ScalarMappable(norm=norm, cmap=cmap)
     if color_latent:
-        valid_ref = codes_valid[
+        if len(codes_valid.shape) == 2:
+            mu_valid = codes_valid
+        elif len(codes_valid.shape) == 3:
+            mu_valid = np.mean(codes_valid, axis=1)
+        else:
+            raise ValueError("Invalid shape of latent codes.")
+        valid_ref = mu_valid[
             np.argmax(
                 np.linalg.norm(
-                    codes_valid - np.mean(codes_valid, axis=0, keepdims=True), axis=1
+                    mu_valid - np.mean(mu_valid, axis=0, keepdims=True), axis=1
                 )
             )
         ]
         valid_sort = np.argsort(
-            np.linalg.norm(codes_valid - valid_ref[None, :], axis=1)
+            np.linalg.norm(mu_valid - valid_ref[None, :], axis=1)
         )
         tras_valid = tras_valid[valid_sort]
         quats_valid = quats_valid[valid_sort]
@@ -901,7 +913,7 @@ def plot_code_colored_on_plane(
         figure: figure instance on which plot is made in-place
         position: subplot position on the figure
         title: title of the subplot
-        codes: latent encodings to be plotted, shape (N, 2)
+        codes: latent encodings to be plotted, shape (N, 2) or (N, M, 2)
         colormap: colormap used for coloring samples
     """
     ax = figure.add_subplot(position)
@@ -909,4 +921,8 @@ def plot_code_colored_on_plane(
     ax.set_title(title)
     ax.set_xticks([])
     ax.set_yticks([])
-    ax.scatter(*codes.T, s=10, color=colormap.to_rgba(np.arange(len(codes))))
+    if len(codes.shape) == 2:
+        ax.scatter(*codes.T, s=10, color=colormap.to_rgba(np.arange(len(codes))))
+    else:
+        for i, code in enumerate(codes):
+            ax.scatter(*code.T, s=10, color=colormap.to_rgba(i))

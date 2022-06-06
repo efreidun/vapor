@@ -32,8 +32,9 @@ def parse_arguments() -> dict:
     parser.add_argument("run", type=str)
     parser.add_argument("--epoch", type=int)
     parser.add_argument("--batch_size", type=int)
-    parser.add_argument("--num_workers", type=int, default=4)
+    parser.add_argument("--num_samples", type=int, default=10)
     parser.add_argument("--color_latent", action="store_true")
+    parser.add_argument("--num_workers", type=int, default=4)
     parser.add_argument("--device", type=str)
     args = parser.parse_args()
 
@@ -101,22 +102,36 @@ def main(config: dict) -> None:
         )
         tras = []
         rots = []
-        lat_mus = []
+        lats = []
         for batch in dataloader:
             image = batch[0].to(device)
             pose = batch[1].to(device)
             tra = pose[:, :3]
             rot = pose[:, 3:].reshape(-1, 3, 3)
-            lat_mu, _ = encoder(image)
-
             tras.append(tra)
             rots.append(rot)
-            lat_mus.append(lat_mu)
+
+            lat_mu, lat_logvar = encoder(image)
+            if cfg.num_samples == 0:
+                lats.append(lat_mu)
+            else:
+                lat_std = torch.exp(0.5 * lat_logvar)
+                eps = torch.randn(
+                    (len(image), cfg.num_samples, encoder.get_latent_dim()),
+                    device=image.device,
+                )
+                lat_sample = eps * lat_std.unsqueeze(1) + lat_mu.unsqueeze(1)
+                lats.append(lat_sample)
+
         tras = torch.cat(tras).cpu().numpy()
         quats = rotmat_to_quat(torch.cat(rots).cpu().numpy())
-        lat_mus = torch.cat(lat_mus).cpu().numpy()
+        lats = torch.cat(lats).cpu().numpy()
 
-        codes = TSNE(n_components=2, init="random").fit_transform(lat_mus)
+        if cfg.num_samples != 0:
+            lats = lats.reshape(-1, encoder.get_latent_dim())
+        codes = TSNE(n_components=2, init="random").fit_transform(lats)
+        if cfg.num_samples != 0:
+            codes = codes.reshape(-1, cfg.num_samples, 2)
 
         tras_splits.append(tras)
         quats_splits.append(quats)
