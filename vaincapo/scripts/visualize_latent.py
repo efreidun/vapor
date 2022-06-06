@@ -33,6 +33,7 @@ def parse_arguments() -> dict:
     parser.add_argument("--epoch", type=int)
     parser.add_argument("--batch_size", type=int)
     parser.add_argument("--num_workers", type=int, default=4)
+    parser.add_argument("--color_latent", action="store_true")
     parser.add_argument("--device", type=str)
     args = parser.parse_args()
 
@@ -127,6 +128,7 @@ def main(config: dict) -> None:
         *codes_splits,
         scene_path,
         cfg.run,
+        cfg.color_latent,
         run_path / "latents.png",
     )
 
