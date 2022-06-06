@@ -121,22 +121,19 @@ def main(config: dict) -> None:
         "jitter_hue": cfg.jitter_hue,
     }
     if cfg.dataset == "AmbiguousReloc":
-        DataSet = AmbiguousReloc
+        train_set = AmbiguousReloc(scene_path / "train", **dataset_cfg)
+        valid_set = AmbiguousReloc(scene_path / "test", **dataset_cfg)
     elif cfg.dataset == "SevenScenes":
-        DataSet = SevenScenes
+        train_set = SevenScenes(scene_path / "train", **dataset_cfg)
+        valid_set = SevenScenes(scene_path / "test", **dataset_cfg)
     elif cfg.dataset == "CambridgeLandmarks":
-        DataSet = CambridgeLandmarks
+        train_set = CambridgeLandmarks(scene_path / "dataset_train.txt", **dataset_cfg)
+        valid_set = CambridgeLandmarks(scene_path / "dataset_test.txt", **dataset_cfg)
     elif cfg.dataset == "SketchUpCircular":
-        pass
-    else:
-        raise ValueError("Invalid dataset.")
-
-    if cfg.dataset == "SketchUpCircular":
         train_set = SketchUpCircular(scene_path, "train", **dataset_cfg)
         valid_set = SketchUpCircular(scene_path, "valid", **dataset_cfg)
     else:
-        train_set = DataSet(scene_path / "train", **dataset_cfg)
-        valid_set = DataSet(scene_path / "test", **dataset_cfg)
+        raise ValueError("Invalid dataset.")
 
     train_loader = DataLoader(
         train_set,
