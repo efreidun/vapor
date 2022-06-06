@@ -2,7 +2,6 @@
 
 from pathlib import Path
 from types import SimpleNamespace
-from vaincapo.losses import euclidean_dist, geodesic_dist
 import yaml
 
 import argparse
@@ -20,6 +19,7 @@ from vaincapo.data import (
 from vaincapo.models import Encoder, PoseMap
 from vaincapo.inference import forward_pass
 from vaincapo.utils import average_pose, rotmat_to_quat
+from vaincapo.losses import euclidean_dist, geodesic_dist
 from vaincapo.read_write import (
     write_metrics,
     write_sample_transforms,
@@ -58,7 +58,7 @@ def main(config: dict) -> None:
     recall_thresholds = [[0.1, 10.0], [0.2, 15.0], [0.3, 20.0], [1.0, 60.0]]
     kde_gaussian_sigmas = np.linspace(0.01, 0.50, num=2, endpoint=True)
     kde_bingham_lambdas = np.linspace(100.0, 400.0, num=2, endpoint=True)
-    recall_min_samples = [20]
+    recall_min_samples = [100]
 
     cfg = SimpleNamespace(**config)
     run_path = Path.home() / "code/vaincapo/runs" / cfg.run
