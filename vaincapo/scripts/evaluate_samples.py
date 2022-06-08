@@ -60,6 +60,11 @@ def main(config: dict) -> None:
         names = mixmod["names"]
 
         num_queries, num_samples, _ = tra_hat.shape
+        if num_samples == 1:
+            cfg.num_renders = 1
+            recall_min_samples = [1]
+            print("Running evaluation in single-hypothesis mode.")
+
         rot = quat_to_rotmat(rot_quat)
         rot_hat = quat_to_rotmat(rot_quat_hat.reshape(-1, 4)).reshape(
             num_queries, num_samples, 3, 3

@@ -65,6 +65,11 @@ def main(config: dict) -> None:
     with open(run_path / "config.yaml") as f:
         train_config = yaml.load(f, Loader=yaml.FullLoader)
     train_cfg = SimpleNamespace(**train_config)
+    if train_cfg.num_samples == 0:
+        cfg.num_samples = 0
+        cfg.num_renders = 1
+        recall_min_samples = [1]
+        print("Running evaluation in single-hypothesis mode.")
 
     torch.set_grad_enabled(False)
     device = cfg.device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
