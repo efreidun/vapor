@@ -93,7 +93,11 @@ def main(config: dict) -> None:
     )
     config["datetime"] = str(datetime.now())
     config["run_name"] = wandb.run.name
-    config["num_winners"] = int(config["top_percent"] * config["num_samples"])
+    config["num_winners"] = (
+        1
+        if config["num_samples"] == 0
+        else int(config["top_percent"] * config["num_samples"])
+    )
     cfg = SimpleNamespace(**config)
     runs_path = base_path / "runs"
     run_path = runs_path / cfg.run_name

@@ -92,12 +92,16 @@ def infer(
     """
     num_images = image.shape[0]
     lat_mu, lat_logvar = encoder(image)
-    lat_std = torch.exp(0.5 * lat_logvar)
-    eps = torch.randn(
-        (num_images, num_samples, encoder.get_latent_dim()), device=image.device
-    )
-    lat_sample = eps * lat_std.unsqueeze(1) + lat_mu.unsqueeze(1)
-    tvec, rvec = posemap(lat_sample.flatten(end_dim=1))
+    if num_samples == 0:
+        num_samples = 1
+        tvec, rvec = posemap(lat_mu)
+    else:
+        lat_std = torch.exp(0.5 * lat_logvar)
+        eps = torch.randn(
+            (num_images, num_samples, encoder.get_latent_dim()), device=image.device
+        )
+        lat_sample = eps * lat_std.unsqueeze(1) + lat_mu.unsqueeze(1)
+        tvec, rvec = posemap(lat_sample.flatten(end_dim=1))
 
     tra_hat = scale_trans(tvec, scene_dims).reshape(num_images, num_samples, 3)
     rot_hat = cont_to_rotmat(rvec).reshape(num_images, num_samples, 3, 3)
