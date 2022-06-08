@@ -25,7 +25,7 @@ def parse_arguments() -> dict:
     parser.add_argument("run", type=str)
     parser.add_argument("--height", type=int)
     parser.add_argument("--width", type=int)
-    parser.add_argument("--dataset", type=str, default="dataset")
+    parser.add_argument("--dataset", type=str, default="AmbiguousReloc")
     parser.add_argument("--source", type=str, default="pipeline")
     parser.add_argument("--reference", type=str, default="render")
     args = parser.parse_args()

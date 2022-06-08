@@ -9,7 +9,8 @@ import torch
 from tqdm import tqdm
 
 from vaincapo.read_write import write_sample_transforms, write_metrics
-from vaincapo.utils import quat_to_rotmat
+from vaincapo.utils import quat_to_rotmat, average_pose
+from vaincapo.losses import euclidean_dist, geodesic_dist
 from vaincapo.evaluation import (
     evaluate_tras_likelihood,
     evaluate_rots_likelihood,
@@ -36,9 +37,9 @@ def parse_arguments() -> dict:
 
 def main(config: dict) -> None:
     recall_thresholds = [[0.1, 10.0], [0.2, 15.0], [0.3, 20.0], [1.0, 60.0]]
-    kde_gaussian_sigmas = np.linspace(0.01, 0.50, num=100, endpoint=True)
-    kde_bingham_lambdas = np.linspace(100.0, 400.0, num=100, endpoint=True)
-    recall_min_samples = [1, 5, 10, 15, 20, 25, 50, 75, 100, 200]
+    kde_gaussian_sigmas = np.linspace(0.01, 0.50, num=2, endpoint=True)
+    kde_bingham_lambdas = np.linspace(100.0, 400.0, num=2, endpoint=True)
+    recall_min_samples = [100]
 
     cfg = SimpleNamespace(**config)
     run_path = Path.home() / "code/vaincapo/bingham_runs" / cfg.run
@@ -46,6 +47,7 @@ def main(config: dict) -> None:
     recalls = []
     tra_log_likelihoods = []
     rot_log_likelihoods = []
+    median_errors = []
 
     split_names = ("train", "valid")
     for split_name in split_names:
@@ -89,6 +91,16 @@ def main(config: dict) -> None:
             ]
         )
 
+        tra_hat_point, rot_hat_point = average_pose(tra_hat, rot_hat)
+        median_errors.append(
+            [
+                torch.median(euclidean_dist(tra_hat_point[:, None, :], tra)).item(),
+                torch.median(
+                    geodesic_dist(rot_hat_point[:, None, :], rot, deg=True)
+                ).item(),
+            ]
+        )
+
         if split_name == "valid":
             scene = "_".join(cfg.run.split("_")[:-1])
             scene_path = Path.home() / "data" / cfg.dataset / scene
@@ -103,6 +115,7 @@ def main(config: dict) -> None:
             )
 
     write_metrics(
+        median_errors,
         recalls,
         tra_log_likelihoods,
         rot_log_likelihoods,
