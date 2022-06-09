@@ -46,9 +46,12 @@ def main(config: dict) -> None:
         with open(run_path / "config.yaml") as f:
             train_config = yaml.load(f, Loader=yaml.FullLoader)
         scene = train_config["sequence"]
-    else:
+    elif cfg.source == "bingham":
         run_path = base_path / "bingham_runs" / cfg.run
         scene = "_".join(cfg.run.split("_")[:-1])
+    else:
+        run_path = Path(cfg.run)
+        scene = run_path.parent.stem
 
     assert cfg.reference in (
         "image",
