@@ -44,28 +44,29 @@ def parse_arguments() -> dict:
     parser.add_argument("--sequence", type=str)
     parser.add_argument("--load_encoder", type=str, default=None)
     parser.add_argument("--load_posemap", type=str, default=None)
-    parser.add_argument("--epochs", type=int, default=20)
+    parser.add_argument("--epochs", type=int, default=500)
     parser.add_argument("--lr", type=float, default=1e-4)
     parser.add_argument("--scheduler_gamma", type=float, default=0.8)
-    parser.add_argument("--scheduler_step", type=int, default=1)
+    parser.add_argument("--scheduler_step", type=int, default=50)
+    parser.add_argument("--scheduler_end", type=int, default=500)
     parser.add_argument("--weight_decay", type=float, default=0)
-    parser.add_argument("--batch_size", type=int, default=4)
+    parser.add_argument("--batch_size", type=int, default=64)
     parser.add_argument("--half_image", action="store_true")
-    parser.add_argument("--image_size", type=int, default=32)
-    parser.add_argument("--image_mode", type=str, default="center_crop")
+    parser.add_argument("--image_size", type=int, default=224)
+    parser.add_argument("--image_mode", type=str, default="posenet")
     parser.add_argument("--image_crop", type=float, default=None)
-    parser.add_argument("--gauss_kernel", type=int, default=None)
-    parser.add_argument("--gauss_sigma", type=float, nargs="*", default=None)
-    parser.add_argument("--jitter_brightness", type=float, default=None)
-    parser.add_argument("--jitter_contrast", type=float, default=None)
-    parser.add_argument("--jitter_saturation", type=float, default=None)
-    parser.add_argument("--jitter_hue", type=float, default=None)
-    parser.add_argument("--latent_dim", type=int, default=20)
+    parser.add_argument("--gauss_kernel", type=int, default=3)
+    parser.add_argument("--gauss_sigma", type=float, nargs="*", default=(0.001, 1.0))
+    parser.add_argument("--jitter_brightness", type=float, default=0.05)
+    parser.add_argument("--jitter_contrast", type=float, default=0.05)
+    parser.add_argument("--jitter_saturation", type=float, default=0.05)
+    parser.add_argument("--jitter_hue", type=float, default=0.05)
+    parser.add_argument("--latent_dim", type=int, default=16)
     parser.add_argument("--backbone", type=str, default="resnet18")
-    parser.add_argument("--map_depth", type=int, default=5)
+    parser.add_argument("--map_depth", type=int, default=3)
     parser.add_argument("--map_breadth", type=int, default=128)
     parser.add_argument("--num_samples", type=int, default=1000)
-    parser.add_argument("--top_percent", type=float, default=1.0)
+    parser.add_argument("--top_percent", type=float, default=0.2)
     parser.add_argument("--tra_weight", type=float, default=5)
     parser.add_argument("--rot_weight", type=float, default=2)
     parser.add_argument("--wta_weight", type=float, default=1)
@@ -237,6 +238,8 @@ def main(config: dict) -> None:
                     cfg.recall_min_samples,
                 )
 
+            med_tra = torch.median(euclidean_dist(tra_hat, tra), dim=1)[0]
+            med_rot = torch.median(geodesic_dist(rot_hat, rot, deg=True), dim=1)[0]
             wandb_log = {
                 "epoch.step": epoch + i / len(train_loader),
                 "train_loss": loss.item(),
@@ -247,17 +250,21 @@ def main(config: dict) -> None:
                 "train_tra_log_likelihood": tra_log_likelihood.item(),
                 "train_rot_log_likelihood": rot_log_likelihood.item(),
                 "train_med_tra_loss": torch.median(
-                    torch.median(euclidean_dist(tra_hat, tra), dim=1)[0]
+                    med_tra[~torch.isnan(med_tra)]
                 ).item(),
                 "train_med_rot_loss": torch.median(
-                    torch.median(geodesic_dist(rot_hat, rot, deg=True), dim=1)[0]
+                    med_rot[~torch.isnan(med_rot)]
                 ).item(),
             }
             for j, (tra_thr, rot_thr) in enumerate(recall_thresholds):
                 wandb_log[f"train_recall_{tra_thr}m_{rot_thr}deg"] = recalls[j]
             wandb.log(wandb_log)
 
-        if epoch != 0 and epoch % cfg.scheduler_gamma == 0:
+        if (
+            epoch != 0
+            and epoch % cfg.scheduler_gamma == 0
+            and epoch <= cfg.scheduler_end
+        ):
             scheduler.step()
 
         encoder.eval()
@@ -322,6 +329,8 @@ def main(config: dict) -> None:
                 recall_thresholds,
                 cfg.recall_min_samples,
             )
+            med_tra = torch.median(euclidean_dist(tra_hat, tra), dim=1)[0]
+            med_rot = torch.median(geodesic_dist(rot_hat, rot, deg=True), dim=1)[0]
             wandb_log = {
                 "epoch.step": epoch + 1,
                 "valid_loss": loss.item(),
@@ -332,10 +341,10 @@ def main(config: dict) -> None:
                 "valid_tra_log_likelihood": tra_log_likelihood.item(),
                 "valid_rot_log_likelihood": rot_log_likelihood.item(),
                 "valid_med_tra_loss": torch.median(
-                    torch.median(euclidean_dist(tra_hat, tra), dim=1)[0]
+                    med_tra[~torch.isnan(med_tra)]
                 ).item(),
                 "valid_med_rot_loss": torch.median(
-                    torch.median(geodesic_dist(rot_hat, rot, deg=True), dim=1)[0]
+                    med_rot[~torch.isnan(med_rot)]
                 ).item(),
             }
             for j, (tra_thr, rot_thr) in enumerate(recall_thresholds):
