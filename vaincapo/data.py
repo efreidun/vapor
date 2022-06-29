@@ -182,16 +182,10 @@ class CambridgeLandmarks(Dataset):
             jitter_hue: hue jitter
         """
         print("Preparing dataset...")
-        seq_ids, img_ids, tvecs, rotmats = read_poses(
+        _, _, tvecs, rotmats, file_paths = read_poses(
             split_file_path, "CambridgeLandmarks"
         )
-
-        self._img_paths = [
-            split_file_path.parent
-            / f"seq{str(seq_id)}"
-            / f"frame{str(img_id).zfill(5)}.png"
-            for seq_id, img_id in zip(seq_ids, img_ids)
-        ]
+        self._img_paths = [split_file_path.parent / file_path for file_path in file_paths]
 
         self._poses = torch.from_numpy(
             np.concatenate((tvecs, rotmats.reshape(-1, 9)), axis=1)

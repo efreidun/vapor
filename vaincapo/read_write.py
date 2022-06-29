@@ -248,6 +248,7 @@ def read_poses(
         img_ids = parsed_poses[:, 1].astype(int)
         tvecs = parsed_poses[:, 6:]
         rotmats = quat_to_rotmat(parsed_poses[:, 2:6])
+        return seq_ids, img_ids, tvecs, rotmats
     elif dataset == "CambridgeLandmarks":
         parsed_poses = np.array(
             [[entry for entry in line.strip().split()] for line in content[3:]],
@@ -257,13 +258,17 @@ def read_poses(
         seq_ids, img_ids = np.array(
             [file_path.split("/") for file_path in file_paths]
         ).T
-        seq_ids = np.array([seq_id[3:] for seq_id in seq_ids], dtype=int)
-        img_ids = np.array([img_id.split(".")[0][5:] for img_id in img_ids], dtype=int)
+        try:
+            seq_ids = np.array([seq_id[3:] for seq_id in seq_ids], dtype=int)
+            img_ids = np.array([img_id.split(".")[0][5:] for img_id in img_ids], dtype=int)
+        except ValueError:
+            seq_ids = None
+            img_ids = None
         tvecs = parsed_poses[:, 1:4].astype(float)
         rotmats = quat_to_rotmat(parsed_poses[:, 4:].astype(float))
+        return seq_ids, img_ids, tvecs, rotmats, file_paths
     else:
         raise ValueError("Invalid dataset name.")
-    return seq_ids, img_ids, tvecs, rotmats
 
 
 def read_tfmat(tfmat_path: Path) -> Tuple[np.ndarray, np.ndarray]:
@@ -333,7 +338,7 @@ def compute_scene_dims(
         f.write(f"mins {mins[0]} {mins[1]} {mins[2]}\n")
         f.write(f"maxs {maxs[0]} {maxs[1]} {maxs[2]}\n")
         f.write(f"margins {margins[0]} {margins[1]} {margins[2]}\n")
-    return torch.tensor(np.vstack((mins, maxs, margins)))
+    return torch.tensor(np.vstack((mins, maxs, margins))).float()
 
 
 def read_scene_dims(scene_path: Path) -> torch.Tensor:
