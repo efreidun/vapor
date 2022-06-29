@@ -24,7 +24,7 @@ def parse_arguments() -> dict:
     )
     parser.add_argument("run", type=str)
     parser.add_argument("--num_samples", type=int, default=10)
-    parser.add_argument("--dataset", type=str, default="dataset")
+    parser.add_argument("--dataset", type=str, default="AmbiguousReloc")
     parser.add_argument("--source", type=str, default="pipeline")
     parser.add_argument("--query", type=int, nargs="+")
     parser.add_argument("--split", type=str, nargs="+", default=["valid"])
