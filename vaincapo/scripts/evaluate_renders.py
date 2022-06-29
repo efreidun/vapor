@@ -40,7 +40,8 @@ def main(config: dict) -> None:
     assert cfg.source in (
         "pipeline",
         "bingham",
-    ), "Source has to be either 'pipeline' or 'bingham'"
+        "posenet",
+    ), "Source has to be either 'pipeline' or 'bingham' or 'posenet'"
     if cfg.source == "pipeline":
         run_path = base_path / "runs" / cfg.run
         with open(run_path / "config.yaml") as f:
@@ -68,21 +69,26 @@ def main(config: dict) -> None:
     )
 
     query_sets = {"images": query_images, "renders": query_renders}
-    mse_avgs = []
-    ssim_avgs = []
+    type_mses = []
+    type_sims = []
     for queries in query_sets.values():
         mses = []
-        ssims = []
+        sims = []
         for query, sample_render in tqdm(
             zip(queries, sample_renders), total=len(queries)
         ):
+            query_mse = []
+            query_sim = []
             for samp_render in sample_render:
-                mses.append(mse(query, samp_render))
-                ssims.append(
+                query_mse.append(mse(query, samp_render))
+                query_sim.append(
                     ssim(query, samp_render, data_range=255, multichannel=True)
                 )
-        mse_avgs.append(np.mean(mses))
-        ssim_avgs.append(np.mean(ssims))
+            mses.append(np.median(query_mse))
+            sims.append(np.median(query_sim))
+        type_mses.append(mses)
+        type_sims.append(sims)
+
 
     with open(run_path / "photometrics.txt", "w") as f:
         f.write(
@@ -90,10 +96,10 @@ def main(config: dict) -> None:
             + f" {sample_renders.shape[1]} {cfg.width}x{cfg.height} rendered samples"
             + f" each\n"
         )
-        for queries, avg_ssim, avg_mse in zip(query_sets.keys(), ssim_avgs, mse_avgs):
+        for queries, type_sim, type_mse in zip(query_sets.keys(), type_sims, type_mses):
             f.write(f"sample renders agains query {queries}:\n")
-            f.write(f"MSE: {avg_mse}\n")
-            f.write(f"SSIM: {np.mean(avg_ssim)}\n")
+            f.write(f"MSE: {np.mean(type_mse)} ({np.std(type_mse)})\n")
+            f.write(f"SSIM: {np.mean(type_sim)} ({np.std(type_sim)})\n")
 
 
 if __name__ == "__main__":
