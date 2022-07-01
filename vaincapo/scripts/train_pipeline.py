@@ -21,7 +21,7 @@ from vaincapo.data import (
 )
 from vaincapo.models import Encoder, PoseMap
 from vaincapo.read_write import read_scene_dims, compute_scene_dims
-from vaincapo.utils import schedule_warmup, rotmat_to_quat
+from vaincapo.utils import schedule_warmup, rotmat_to_quat, average_pose
 from vaincapo.inference import forward_pass
 from vaincapo.losses import chordal_to_geodesic, euclidean_dist, geodesic_dist
 from vaincapo.evaluation import (
@@ -55,12 +55,14 @@ def parse_arguments() -> dict:
     parser.add_argument("--image_size", type=int, default=224)
     parser.add_argument("--image_mode", type=str, default="posenet")
     parser.add_argument("--image_crop", type=float, default=None)
-    parser.add_argument("--gauss_kernel", type=int, default=3)
-    parser.add_argument("--gauss_sigma", type=float, nargs="*", default=(0.001, 1.0))
-    parser.add_argument("--jitter_brightness", type=float, default=0.05)
-    parser.add_argument("--jitter_contrast", type=float, default=0.05)
-    parser.add_argument("--jitter_saturation", type=float, default=0.05)
-    parser.add_argument("--jitter_hue", type=float, default=0.05)
+    parser.add_argument("--gauss_kernel", type=int, default=None)  # 3)
+    parser.add_argument(
+        "--gauss_sigma", type=float, nargs="*", default=None
+    )  # (0.001, 1.0))
+    parser.add_argument("--jitter_brightness", type=float, default=None)  # 0.05)
+    parser.add_argument("--jitter_contrast", type=float, default=None)  # 0.05)
+    parser.add_argument("--jitter_saturation", type=float, default=None)  # 0.05)
+    parser.add_argument("--jitter_hue", type=float, default=None)  # 0.05)
     parser.add_argument("--latent_dim", type=int, default=16)
     parser.add_argument("--backbone", type=str, default="resnet18")
     parser.add_argument("--map_depth", type=int, default=3)
@@ -75,7 +77,7 @@ def parse_arguments() -> dict:
     parser.add_argument("--kld_max_weight", type=float, default=0.01)
     parser.add_argument("--kde_gaussian_sigma", type=float, default=0.1)
     parser.add_argument("--kde_bingham_lambda", type=float, default=40.0)
-    parser.add_argument("--recall_min_samples", type=int, default=20)
+    parser.add_argument("--recall_min_samples", type=int, default=100)
     parser.add_argument("--num_workers", type=int, default=8)
     parser.add_argument("--device", type=str)
     args = parser.parse_args()
@@ -238,8 +240,7 @@ def main(config: dict) -> None:
                     cfg.recall_min_samples,
                 )
 
-            med_tra = torch.median(euclidean_dist(tra_hat, tra), dim=1)[0]
-            med_rot = torch.median(geodesic_dist(rot_hat, rot, deg=True), dim=1)[0]
+            tra_hat_point, rot_hat_point = average_pose(tra_hat, rot_hat)
             wandb_log = {
                 "epoch.step": epoch + i / len(train_loader),
                 "train_loss": loss.item(),
@@ -250,10 +251,10 @@ def main(config: dict) -> None:
                 "train_tra_log_likelihood": tra_log_likelihood.item(),
                 "train_rot_log_likelihood": rot_log_likelihood.item(),
                 "train_med_tra_loss": torch.median(
-                    med_tra[~torch.isnan(med_tra)]
+                    euclidean_dist(tra_hat_point[:, None, :], tra)
                 ).item(),
                 "train_med_rot_loss": torch.median(
-                    med_rot[~torch.isnan(med_rot)]
+                    geodesic_dist(rot_hat_point[:, None, :], rot, deg=True)
                 ).item(),
             }
             for j, (tra_thr, rot_thr) in enumerate(recall_thresholds):
@@ -329,8 +330,7 @@ def main(config: dict) -> None:
                 recall_thresholds,
                 cfg.recall_min_samples,
             )
-            med_tra = torch.median(euclidean_dist(tra_hat, tra), dim=1)[0]
-            med_rot = torch.median(geodesic_dist(rot_hat, rot, deg=True), dim=1)[0]
+            tra_hat_point, rot_hat_point = average_pose(tra_hat, rot_hat)
             wandb_log = {
                 "epoch.step": epoch + 1,
                 "valid_loss": loss.item(),
@@ -341,10 +341,10 @@ def main(config: dict) -> None:
                 "valid_tra_log_likelihood": tra_log_likelihood.item(),
                 "valid_rot_log_likelihood": rot_log_likelihood.item(),
                 "valid_med_tra_loss": torch.median(
-                    med_tra[~torch.isnan(med_tra)]
+                    euclidean_dist(tra_hat_point[:, None, :], tra)
                 ).item(),
                 "valid_med_rot_loss": torch.median(
-                    med_rot[~torch.isnan(med_rot)]
+                    geodesic_dist(rot_hat_point[:, None, :], rot, deg=True)
                 ).item(),
             }
             for j, (tra_thr, rot_thr) in enumerate(recall_thresholds):
