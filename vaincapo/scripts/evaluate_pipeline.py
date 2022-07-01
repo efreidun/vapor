@@ -58,9 +58,9 @@ def main(config: dict) -> None:
     recall_thresholds = [[0.1, 10.0], [0.2, 15.0], [0.3, 20.0], [1.0, 60.0]]
     kde_gaussian_sigmas = np.linspace(0.01, 0.50, num=2, endpoint=True)
     kde_bingham_lambdas = np.linspace(100.0, 400.0, num=2, endpoint=True)
-    recall_min_samples = [100]
-
     cfg = SimpleNamespace(**config)
+    recall_min_samples = [cfg.num_samples // 10]
+
     run_path = Path.home() / "code/vaincapo/runs" / cfg.run
     with open(run_path / "config.yaml") as f:
         train_config = yaml.load(f, Loader=yaml.FullLoader)
