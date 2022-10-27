@@ -23,7 +23,7 @@ def parse_arguments() -> dict:
     parser.add_argument("run", type=str)
     parser.add_argument("--num_samples", type=int, default=1000)
     parser.add_argument("--num_candidates", type=int, default=10000)
-    parser.add_argument("--split", type=str, nargs="+", default=["train", "valid"])
+    parser.add_argument("--split", type=str, nargs="+", default=["valid"])
     parser.add_argument("--device", type=str)
 
     args = parser.parse_args()

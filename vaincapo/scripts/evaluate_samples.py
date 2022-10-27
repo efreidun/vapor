@@ -37,9 +37,11 @@ def parse_arguments() -> dict:
 
 def main(config: dict) -> None:
     recall_thresholds = [[0.1, 10.0], [0.2, 15.0], [0.3, 20.0], [1.0, 60.0]]
-    kde_gaussian_sigmas = np.linspace(0.01, 0.50, num=2, endpoint=True)
-    kde_bingham_lambdas = np.linspace(100.0, 400.0, num=2, endpoint=True)
-    recall_min_samples = [100]
+    # kde_gaussian_sigmas = np.linspace(0.01, 0.50, num=2, endpoint=True)
+    # kde_bingham_lambdas = np.linspace(100.0, 400.0, num=2, endpoint=True)
+    kde_gaussian_sigmas = [0.1]
+    kde_bingham_lambdas = [40.0]
+    recall_min_samples = [50]
 
     cfg = SimpleNamespace(**config)
     run_path = Path.home() / "code/vaincapo/bingham_runs" / cfg.run
@@ -106,18 +108,18 @@ def main(config: dict) -> None:
             ]
         )
 
-        if split_name == "valid":
-            scene = "_".join(cfg.run.split("_")[:-1])
-            scene_path = Path.home() / "data" / cfg.dataset / scene
-            write_sample_transforms(
-                tra_hat.cpu().numpy(),
-                rot_hat.cpu().numpy(),
-                names,
-                cfg.num_renders,
-                run_path,
-                scene_path,
-                split_name,
-            )
+        # if split_name == "valid":
+        #     scene = "_".join(cfg.run.split("_")[:-1])
+        #     scene_path = Path.home() / "data" / cfg.dataset / scene
+        #     write_sample_transforms(
+        #         tra_hat.cpu().numpy(),
+        #         rot_hat.cpu().numpy(),
+        #         names,
+        #         cfg.num_renders,
+        #         run_path,
+        #         scene_path,
+        #         split_name,
+        #     )
 
     write_metrics(
         median_errors,

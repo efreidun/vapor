@@ -64,6 +64,8 @@ def forward_pass(
     wta_loss, tra_loss, rot_loss = winners_take_all(
         tra_error, rot_error, tra_weight, rot_weight, num_winners
     )
+    # print("MU:", lat_mu)
+    # print("STD:", torch.exp(lat_logvar) ** 0.5)
 
     return tra, rot, tra_hat, rot_hat, wta_loss, kld_loss, tra_loss, rot_loss
 

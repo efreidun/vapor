@@ -152,7 +152,7 @@ def get_tra_log_likelihood(
         log likelihood of query point
     """
     dist = R3Gaussian(samples, sigma)
-    return dist.log_prob(query)
+    return dist.log_prob(query.float())
 
 
 def get_rot_log_likelihood(
