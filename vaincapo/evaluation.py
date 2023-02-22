@@ -4,8 +4,8 @@ from typing import Iterable, List
 
 import torch
 
-from vaincapo.density_estimation import R3Gaussian, SO3Bingham
-from vaincapo.losses import euclidean_dist, geodesic_dist
+from vapor.density_estimation import R3Gaussian, SO3Bingham
+from vapor.losses import euclidean_dist, geodesic_dist
 
 
 def evaluate_recall(

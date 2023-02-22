@@ -9,15 +9,15 @@ import torch
 from torch.utils.data import DataLoader
 from sklearn.manifold import TSNE
 
-from vaincapo.data import (
+from vapor.data import (
     AmbiguousReloc,
     SevenScenes,
     CambridgeLandmarks,
     SketchUpCircular,
 )
-from vaincapo.models import Encoder
-from vaincapo.plotting import plot_latent
-from vaincapo.utils import rotmat_to_quat
+from vapor.models import Encoder
+from vapor.plotting import plot_latent
+from vapor.utils import rotmat_to_quat
 
 
 def parse_arguments() -> dict:
@@ -43,7 +43,7 @@ def parse_arguments() -> dict:
 
 def main(config: dict) -> None:
     cfg = SimpleNamespace(**config)
-    run_path = Path.home() / "code/vaincapo/runs" / cfg.run
+    run_path = Path.home() / "code/vapor/runs" / cfg.run
     with open(run_path / "config.yaml") as f:
         train_config = yaml.load(f, Loader=yaml.FullLoader)
     train_cfg = SimpleNamespace(**train_config)

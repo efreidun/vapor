@@ -8,7 +8,7 @@ import numpy as np
 from PIL import Image
 import torch
 
-from vaincapo.utils import quat_to_rotmat, get_ingp_transform
+from vapor.utils import quat_to_rotmat, get_ingp_transform
 
 
 def read_rendered_samples(

@@ -11,8 +11,8 @@ import cv2
 import numpy as np
 from tqdm import tqdm
 
-from vaincapo.utils import get_ingp_transform
-from vaincapo.read_write import read_poses, read_tfmat
+from vapor.utils import get_ingp_transform
+from vapor.read_write import read_poses, read_tfmat
 
 
 def parse_arguments() -> dict:

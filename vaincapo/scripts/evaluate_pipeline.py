@@ -10,24 +10,24 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 import numpy as np
 
-from vaincapo.data import (
+from vapor.data import (
     AmbiguousReloc,
     SevenScenes,
     CambridgeLandmarks,
     SketchUpCircular,
     Rig,
 )
-from vaincapo.models import Encoder, PoseMap
-from vaincapo.inference import forward_pass
-from vaincapo.utils import average_pose, rotmat_to_quat
-from vaincapo.losses import euclidean_dist, geodesic_dist
-from vaincapo.read_write import (
+from vapor.models import Encoder, PoseMap
+from vapor.inference import forward_pass
+from vapor.utils import average_pose, rotmat_to_quat
+from vapor.losses import euclidean_dist, geodesic_dist
+from vapor.read_write import (
     write_metrics,
     write_sample_transforms,
     read_scene_dims,
     compute_scene_dims,
 )
-from vaincapo.evaluation import (
+from vapor.evaluation import (
     evaluate_tras_likelihood,
     evaluate_rots_likelihood,
     evaluate_recall,
@@ -62,7 +62,7 @@ def main(config: dict) -> None:
     cfg = SimpleNamespace(**config)
     recall_min_samples = [cfg.num_samples // 10]
 
-    run_path = Path.home() / "code/vaincapo/runs" / cfg.run
+    run_path = Path.home() / "code/vapor/runs" / cfg.run
     with open(run_path / "config.yaml") as f:
         train_config = yaml.load(f, Loader=yaml.FullLoader)
     train_cfg = SimpleNamespace(**train_config)

@@ -10,7 +10,7 @@ from tqdm import tqdm
 import torch
 import torch.distributions as D
 
-from vaincapo.sampling import GMM, BMM
+from vapor.sampling import GMM, BMM
 
 
 def parse_arguments() -> dict:
@@ -34,7 +34,7 @@ def parse_arguments() -> dict:
 def main(config: dict) -> None:
     cfg = SimpleNamespace(**config)
     device = cfg.device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    run_path = Path.home() / "code/vaincapo/bingham_runs" / cfg.run
+    run_path = Path.home() / "code/vapor/bingham_runs" / cfg.run
 
     for split_name in cfg.split:
         split_path = run_path / f"{split_name}.npz"

@@ -9,8 +9,8 @@ import numpy as np
 import argparse
 from tqdm import tqdm
 
-from vaincapo.read_write import read_rendered_samples
-from vaincapo.plotting import plot_posterior
+from vapor.read_write import read_rendered_samples
+from vapor.plotting import plot_posterior
 
 
 def parse_arguments() -> dict:
@@ -36,7 +36,7 @@ def parse_arguments() -> dict:
 
 def main(config: dict) -> None:
     cfg = SimpleNamespace(**config)
-    base_path = Path.home() / "code/vaincapo"
+    base_path = Path.home() / "code/vapor"
     dataset_path = Path.home() / "data" / cfg.dataset
     assert cfg.source in (
         "pipeline",

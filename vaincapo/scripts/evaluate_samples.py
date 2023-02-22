@@ -8,10 +8,10 @@ import numpy as np
 import torch
 from tqdm import tqdm
 
-from vaincapo.read_write import write_sample_transforms, write_metrics
-from vaincapo.utils import quat_to_rotmat, average_pose
-from vaincapo.losses import euclidean_dist, geodesic_dist
-from vaincapo.evaluation import (
+from vapor.read_write import write_sample_transforms, write_metrics
+from vapor.utils import quat_to_rotmat, average_pose
+from vapor.losses import euclidean_dist, geodesic_dist
+from vapor.evaluation import (
     evaluate_tras_likelihood,
     evaluate_rots_likelihood,
     evaluate_recall,
@@ -42,7 +42,7 @@ def main(config: dict) -> None:
     recall_min_samples = [100]
 
     cfg = SimpleNamespace(**config)
-    run_path = Path.home() / "code/vaincapo/bingham_runs" / cfg.run
+    run_path = Path.home() / "code/vapor/bingham_runs" / cfg.run
 
     recalls = []
     tra_log_likelihoods = []

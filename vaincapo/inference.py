@@ -4,9 +4,9 @@ from typing import Tuple
 
 import torch
 
-from vaincapo.models import Encoder, PoseMap
-from vaincapo.utils import scale_trans, cont_to_rotmat
-from vaincapo.losses import (
+from vapor.models import Encoder, PoseMap
+from vapor.utils import scale_trans, cont_to_rotmat
+from vapor.losses import (
     kl_divergence,
     winners_take_all,
     euclidean_dist,

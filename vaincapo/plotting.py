@@ -13,8 +13,8 @@ import open3d as o3d
 from PIL import Image
 import tikzplotlib
 
-from vaincapo.utils import quat_to_hopf, quat_to_rotmat, rotmat_to_quat
-from vaincapo.read_write import read_scene_dims
+from vapor.utils import quat_to_hopf, quat_to_rotmat, rotmat_to_quat
+from vapor.read_write import read_scene_dims
 
 
 def plot_ceiling(
@@ -710,7 +710,7 @@ def render_3d(
     else:
         # default vis camera
         vis_camera = o3d.io.read_pinhole_camera_parameters(
-            str(Path.home() / "code/vaincapo/default_vis.json")
+            str(Path.home() / "code/vapor/default_vis.json")
         )
         vis = o3d.visualization.Visualizer()
         vis.create_window(

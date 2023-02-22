@@ -4,8 +4,8 @@ import time
 import numpy as np
 import torch
 
-from vaincapo.models import Encoder, PoseMap
-from vaincapo.data import AmbiguousReloc
+from vapor.models import Encoder, PoseMap
+from vapor.data import AmbiguousReloc
 
 dataset = AmbiguousReloc(
     Path.home() / "data/AmbiguousReloc/blue_chairs/test",

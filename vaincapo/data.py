@@ -20,7 +20,7 @@ from torchvision.transforms import (
 )
 from tqdm import tqdm
 
-from vaincapo.read_write import read_poses, read_tfmat
+from vapor.read_write import read_poses, read_tfmat
 
 
 class Rig(Dataset):

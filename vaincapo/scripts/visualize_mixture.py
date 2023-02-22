@@ -8,7 +8,7 @@ import argparse
 import numpy as np
 from tqdm import tqdm
 
-from vaincapo.plotting import plot_mixture_model
+from vapor.plotting import plot_mixture_model
 
 
 def parse_arguments() -> dict:
@@ -30,7 +30,7 @@ def parse_arguments() -> dict:
 
 def main(config: dict) -> None:
     cfg = SimpleNamespace(**config)
-    base_path = Path.home() / "code/vaincapo"
+    base_path = Path.home() / "code/vapor"
     dataset_path = Path.home() / "data/AmbiguousReloc"
     run_path = base_path / "bingham_runs" / cfg.run
     scene = "_".join(cfg.run.split("_")[:-1])

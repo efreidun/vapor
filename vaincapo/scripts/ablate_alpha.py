@@ -10,14 +10,14 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 import numpy as np
 
-from vaincapo.data import SketchUpCircular
-from vaincapo.models import Encoder, PoseMap
-from vaincapo.inference import forward_pass
-from vaincapo.read_write import (
+from vapor.data import SketchUpCircular
+from vapor.models import Encoder, PoseMap
+from vapor.inference import forward_pass
+from vapor.read_write import (
     read_scene_dims,
     compute_scene_dims,
 )
-from vaincapo.evaluation import evaluate_recall
+from vapor.evaluation import evaluate_recall
 
 
 def parse_arguments() -> dict:
@@ -48,7 +48,7 @@ def main(config: dict) -> None:
     cfg = SimpleNamespace(**config)
     recall_min_samples = cfg.num_samples // 10
 
-    run_path = Path.home() / "code/vaincapo/runs" / cfg.run
+    run_path = Path.home() / "code/vapor/runs" / cfg.run
     with open(run_path / "config.yaml") as f:
         train_config = yaml.load(f, Loader=yaml.FullLoader)
     train_cfg = SimpleNamespace(**train_config)

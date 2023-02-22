@@ -8,10 +8,10 @@ import argparse
 import torch
 from tqdm import tqdm
 
-from vaincapo.data import AmbiguousReloc, Rig
-from vaincapo.utils import quat_to_rotmat
-from vaincapo.evaluation import evaluate_recall
-from vaincapo.read_write import write_sample_transforms
+from vapor.data import AmbiguousReloc, Rig
+from vapor.utils import quat_to_rotmat
+from vapor.evaluation import evaluate_recall
+from vapor.read_write import write_sample_transforms
 
 
 def parse_arguments() -> dict:

@@ -13,19 +13,19 @@ from torch.optim import Adam
 from torch.optim.lr_scheduler import ExponentialLR
 import wandb
 
-from vaincapo.data import (
+from vapor.data import (
     AmbiguousReloc,
     SevenScenes,
     CambridgeLandmarks,
     SketchUpCircular,
     Rig,
 )
-from vaincapo.models import Encoder, PoseMap
-from vaincapo.read_write import read_scene_dims, compute_scene_dims
-from vaincapo.utils import schedule_warmup, rotmat_to_quat, average_pose
-from vaincapo.inference import forward_pass
-from vaincapo.losses import chordal_to_geodesic, euclidean_dist, geodesic_dist
-from vaincapo.evaluation import (
+from vapor.models import Encoder, PoseMap
+from vapor.read_write import read_scene_dims, compute_scene_dims
+from vapor.utils import schedule_warmup, rotmat_to_quat, average_pose
+from vapor.inference import forward_pass
+from vapor.losses import chordal_to_geodesic, euclidean_dist, geodesic_dist
+from vapor.evaluation import (
     evaluate_tras_likelihood,
     evaluate_rots_likelihood,
     evaluate_recall,
@@ -86,10 +86,9 @@ def parse_arguments() -> dict:
 
 def main(config: dict) -> None:
     recall_thresholds = [[0.1, 10.0], [0.2, 15.0], [0.3, 20.0], [1.0, 60.0]]
-    base_path = Path.home() / "code/vaincapo"
+    base_path = Path.home() / "code/vapor"
     wandb.init(
-        project="vaincapo_pipeline",
-        entity="efreidun",
+        project="vapor",
         config=config,
         dir=str(base_path),
     )
