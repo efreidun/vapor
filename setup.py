@@ -4,14 +4,14 @@ with open("README.md", "r") as fh:
     long_description = fh.read()
 
 setuptools.setup(
-    name="vaincapo",
-    version="0.1.0",
+    name="vapor",
+    version="1.0.0",
     author="Fereidoon Zangeneh",
     author_email="efreidun@gmail.com",
-    description="Variational Inference of Camera Pose Posterior Distribution",
+    description="A Probabilistic Framework for Visual Localization in Ambiguous Scenes",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    url="https://github.com/efreidun/vaincapo",
+    url="https://github.com/efreidun/vapor",
     packages=setuptools.find_packages(),
     install_requires=[
         "numpy",
