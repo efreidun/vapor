@@ -2,6 +2,7 @@
 
 from typing import Optional, Iterable, Union
 from pathlib import Path
+from itertools import cycle
 
 import numpy as np
 import matplotlib as mpl
@@ -9,9 +10,284 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Circle
 from matplotlib.gridspec import GridSpec, SubplotSpec
 import open3d as o3d
+from PIL import Image
+import tikzplotlib
 
-from vaincapo.utils import quat_to_hopf
+from vaincapo.utils import quat_to_hopf, quat_to_rotmat, rotmat_to_quat
 from vaincapo.read_write import read_scene_dims
+
+
+def plot_ceiling(
+    query_image: np.ndarray,
+    tra_samples: np.ndarray,
+    tra_gt: Optional[np.ndarray] = None,
+    tra_pred: Optional[np.ndarray] = None,
+    tra_bing: Optional[np.ndarray] = None,
+    save: Optional[Union[Path, str]] = None,
+) -> plt.Figure:
+    """Plot many samples drawn from a posterior distribution.
+
+    Args:
+        query_image: query image, shape (H, W, 3)
+        tra_samples: translation samples, shape (N, 3)
+        tra_gt: groundtruth translation, shape (3,)
+        tra_pred: single translation prediction, shape (3,)
+        tra_bing: translation samples from Bingham method, shape (N, 3)
+        save: save path including file extension
+
+    Returns:
+        figure instance
+    """
+    fig = plt.figure(figsize=(25, 6))
+    # fig.suptitle(title)
+    grid_spec = GridSpec(58, 100)
+
+    img_corner = (np.array(list(query_image.shape[:2])) - 224) // 2
+
+    # first row
+    show_image(
+        fig,
+        grid_spec[00:25, 90:100],  # grid_spec[0:30, 20:40],
+        "query image",
+        query_image[
+            img_corner[0] : img_corner[0] + 224, img_corner[1] : img_corner[1] + 224
+        ],
+    )
+
+    # second row
+    tra_samples_vis = (tra_samples - np.array([[13.214, 0.232, 0]])) * np.array(
+        [[1, -1, 1]]
+    ) * 1000 + np.array([[778, 443, 0]])
+    tra_gt_vis = (tra_gt - np.array([13.214, 0.232, 0])) * np.array(
+        [1, -1, 1]
+    ) * 1000 + np.array([778, 443, 0])
+    tra_pred_vis = (tra_pred - np.array([13.214, 0.232, 0])) * np.array(
+        [1, -1, 1]
+    ) * 1000 + np.array([778, 443, 0])
+    tra_bing_vis = (tra_bing - np.array([[13.214, 0.232, 0]])) * np.array(
+        [[1, -1, 1]]
+    ) * 1000 + np.array([[778, 443, 0]])
+    ax = fig.add_subplot(grid_spec[0:25, 0:85])
+    ax.set_title("marginal histogram on x-axis")
+    ax.hist(
+        tra_samples_vis[:, 0],
+        bins=16500 // 100,
+        range=[0, 16500],
+        density=True,
+        zorder=0,
+        alpha = 1.0,
+        label = "Ours",
+    )
+    ax.hist(
+        tra_bing_vis[:, 0],
+        bins=16500 // 100,
+        range=[0, 16500],
+        density=True,
+        zorder=1,
+        alpha = 0.7,
+        label = "Bingham MDN"
+    )
+    ax.set_yticks([])
+    xticks = np.linspace(0, 16000, 9)
+    xticklabels = xticks / 1000
+    yticks = np.linspace(0, 1000, 3)
+    yticklabels = yticks / 1000
+    ax.set_xticklabels(xticklabels)
+    ax.set_xlabel("x (m)")
+    ax.set_ylabel("density")
+    ax.set_xlim([0, 16500])
+    ax.set_ylim([0, 0.002])
+    ax.vlines(
+        tra_pred_vis[0],
+        0,
+        0.002,
+        linewidth=2,
+        edgecolor="magenta",
+        zorder=1,
+        label="MapNet"
+    )
+    ax.vlines(
+        tra_gt_vis[0],
+        0,
+        0.002,
+        linewidth=2,
+        edgecolor="limegreen",
+        zorder=2,
+        label="Ground truth"
+    )
+    ax.legend(loc="upper right")
+
+    ax = fig.add_subplot(grid_spec[40:57, 0:85])
+    ax.set_aspect("equal")
+    ax.set_title("posterior on xy-plane")
+    stitched_img = np.array(Image.open(Path.home() / "data/Rig/Ceiling/stitched.jpg"))
+    ax.imshow(stitched_img)
+    ax.set_xticklabels(xticklabels)
+    ax.set_yticklabels(yticklabels)
+    ax.set_xlabel("x (m)")
+    ax.set_ylabel("y (m)")
+    ax.hist2d(
+        *tra_samples_vis.T[[0, 1]],
+        bins=[16500 // 100, 1250 // 100],
+        alpha=0.5,
+        range=[[0, 16500], [0, 1250]],
+        cmap="plasma",
+    )
+    ax.add_patch(
+        Circle(
+            xy=tra_pred_vis[:2],
+            radius=150,
+            linewidth=2,
+            facecolor="none",
+            edgecolor="magenta",
+        )
+    )
+    ax.add_patch(
+        Circle(
+            xy=tra_gt_vis[:2],
+            radius=150,
+            linewidth=2,
+            facecolor="none",
+            edgecolor="limegreen",
+        )
+    )
+    ax = fig.add_subplot(grid_spec[40:57, 90:100])
+    ax.set_title("marginal histogram on y-axis")
+    ax.hist(
+        tra_samples_vis[:, 1],
+        bins=1250 // 100,
+        range=[0, 1250],
+        density=True,
+        orientation="horizontal",
+        zorder=0,
+        label="Ours",
+        alpha=1.0
+    )
+    ax.hist(
+        tra_bing_vis[:, 1],
+        bins=1250 // 100,
+        range=[0, 1250],
+        density=True,
+        orientation="horizontal",
+        zorder=1,
+        label="Bui et al.",
+        alpha=0.7
+    )
+    ax.set_xticks([])
+    ax.set_yticklabels(yticklabels)
+    ax.set_xlabel("density")
+    ax.set_ylabel("y (m)")
+    ax.set_xlim([0, 0.01])
+    ax.set_ylim([0, 1250])
+    ax.hlines(
+        tra_pred_vis[1],
+        0,
+        0.01,
+        linewidth=2,
+        edgecolor="magenta",
+        zorder=1,
+        label="MapNet"
+    )
+    ax.hlines(
+        tra_gt_vis[1],
+        0,
+        0.01,
+        linewidth=2,
+        edgecolor="limegreen",
+        zorder=2,
+        label="Groundtruth"
+    )
+
+    if save is not None:
+        print(f"Saving plot {save}")
+        fig.savefig(save)
+        tikzplotlib.save(save.with_suffix(".tex"))
+
+    return fig
+
+
+def plot_hist_on_axis(
+    figure: plt.Figure,
+    position: SubplotSpec,
+    title: str,
+    flipped: bool,
+    num_bins: Optional[int],
+    lims: Iterable[float],
+    max_density: float,
+    samples: np.ndarray,
+    gt: Optional[np.ndarray] = None,
+    pred: Optional[float] = None,
+) -> None:
+    """Plot 1D histogram on axis for marginalized quantities.
+
+    Args:
+        figure: figure instance on which plot is made in-place
+        position: subplot position on the figure
+        title: title of the subplot
+        flipped: if True, histogram is plotted vertically
+        num_bins: number of histogram bins
+        lims: [min, max] range
+        max_density: maximum density to fix the histogram scale
+        samples: samples to be plotted, shape (N, 3)
+        gt: groundtruth plotted as lines, shape (M, 3)
+        pred: single prediction
+    """
+    ax = figure.add_subplot(position)
+    ax.set_title(title)
+    if flipped:
+        ax.set_xlim([0, max_density])
+    else:
+        ax.set_ylim([0, max_density])
+
+    ax.hist(
+        samples,
+        bins=num_bins,
+        range=lims,
+        orientation="horizontal" if flipped else "vertical",
+        density=True,
+        zorder=0,
+    )
+
+    if gt is not None:
+        for g in gt:
+            if flipped:
+                ax.hlines(
+                    g,
+                    0,
+                    max_density,
+                    linewidth=2,
+                    edgecolor="red",
+                    zorder=2,
+                )
+            else:
+                ax.vlines(
+                    g,
+                    0,
+                    max_density,
+                    linewidth=2,
+                    edgecolor="red",
+                    zorder=2,
+                )
+
+    if pred is not None:
+        if flipped:
+            ax.hlines(
+                pred,
+                0,
+                max_density,
+                linewidth=4,
+                edgecolor="cyan",
+                zorder=1,
+            )
+        else:
+            ax.vlines(
+                pred,
+                0,
+                max_density,
+                linewidth=4,
+                edgecolor="cyan",
+                zorder=1,
+            )
 
 
 def plot_latent(
@@ -82,9 +358,7 @@ def plot_latent(
                 )
             )
         ]
-        train_sort = np.argsort(
-            np.linalg.norm(mu_train - train_ref[None, :], axis=1)
-        )
+        train_sort = np.argsort(np.linalg.norm(mu_train - train_ref[None, :], axis=1))
         tras_train = tras_train[train_sort]
         quats_train = quats_train[train_sort]
         codes_train = codes_train[train_sort]
@@ -140,9 +414,7 @@ def plot_latent(
                 )
             )
         ]
-        valid_sort = np.argsort(
-            np.linalg.norm(mu_valid - valid_ref[None, :], axis=1)
-        )
+        valid_sort = np.argsort(np.linalg.norm(mu_valid - valid_ref[None, :], axis=1))
         tras_valid = tras_valid[valid_sort]
         quats_valid = quats_valid[valid_sort]
         codes_valid = codes_valid[valid_sort]
@@ -296,8 +568,8 @@ def plot_posterior(
         title: title of figure
         query_render: NeRF render of the query image, shape (H, W, 3)
         sample_renders: NeRF rendesr of the samples, shape (M, H, W, 3)
-        tra_gt: groundtruth translation, shape (3,)
-        quat_gt: groundtruth rotation in quaternion [w, x, y, z], shape (4,)
+        tra_gt: groundtruth translation, shape (M, 3)
+        quat_gt: groundtruth rotation in quaternion [w, x, y, z], shape (M, 4)
         save: save path including file extension
 
     Returns:
@@ -316,9 +588,7 @@ def plot_posterior(
     cb_w = 1
     cw_o = 1
     cw_w = 4
-    grid_spec = GridSpec(
-        r[1] + h if (query_render is None and sample_renders is None) else 100, 100
-    )
+    grid_spec = GridSpec(100, 100)
 
     # first row of subplots, query image and posterior samples
     show_image(
@@ -333,14 +603,22 @@ def plot_posterior(
         "translations posterior",
         scene_dims,
         tra_samples,
-        tra_gt[None, :],
+        tra_gt,
+    )
+    plot_tra_hist_on_plane(
+        fig,
+        grid_spec[r[2] : r[2] + h, c[0] : c[2] + w],
+        "translations posterior",
+        scene_dims,
+        tra_samples,
+        tra_gt,
     )
     plot_rot_hist_on_plane(
         fig,
         grid_spec[r[0] : r[0] + h, c[2] : c[2] + w],
         "rotation posterior",
         quat_samples,
-        quat_gt[None, :],
+        quat_gt,
     )
 
     # second row of subplots, projecive view and individual samples
@@ -363,7 +641,7 @@ def plot_posterior(
         "translations samples",
         scene_dims,
         tra_samples[:num_samples],
-        tra_gt[None, :],
+        tra_gt,
         markers,
         grid_spec[r[1] : r[1] + h, c[1] + w + cb_o : c[1] + w + cb_o + cb_w],
     )
@@ -372,7 +650,7 @@ def plot_posterior(
         grid_spec[r[1] : r[1] + h, c[2] : c[2] + w],
         "rotation samples",
         quat_samples[:num_samples],
-        quat_gt[None, :],
+        quat_gt,
         markers,
         grid_spec[r[1] : r[1] + h, c[2] + w + cw_o : c[2] + w + cw_o + cw_w],
     )
@@ -412,8 +690,8 @@ def render_3d(
         scene_path: path to the scene that contains vis_camera.json and mesh.ply
         tra_samples: translation samples , shape (N, 3)
         quat_samples: rotation samples in quaternion [w, x, y, z], shape (N, 4)
-        tra_gt: groundtruth translation, shape (3,)
-        quat_gt: groundtruth rotation in quaternion [w, x, y, z], shape (4,)
+        tra_gt: groundtruth translation, shape (M, 3)
+        quat_gt: groundtruth rotation in quaternion [w, x, y, z], shape (M, 4)
     """
     mesh_path = scene_path / "mesh.ply"
     if mesh_path.is_file():
@@ -445,21 +723,36 @@ def render_3d(
         )
         vis.add_geometry(origin_frame)
 
+    intrinsic = np.array(
+        [
+            [7.5879234898141704e02, 0.0, 2.7354155451863954e02],
+            [0.0, 7.6005168616062099e02, 4.8594391325399761e02],
+            [0.0, 0.0, 1.0],
+        ]
+    )
+    noises = np.random.uniform(-1, 1, size=(100, 3)) * 0.002
     for tra, quat in zip(tra_samples, quat_samples):
-        sample_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(
-            size=0.2, origin=[0.0, 0.0, 0.0]
-        )
-        sample_frame.rotate(o3d.geometry.get_rotation_matrix_from_quaternion(quat))
-        sample_frame.translate(tra)
-        vis.add_geometry(sample_frame)
+        for noise in noises:
+            sample_frame = o3d.geometry.LineSet.create_camera_visualization(
+                540, 960, intrinsic, np.eye(4), scale=0.2
+            )
+            sample_frame.paint_uniform_color(np.array([190, 0, 255]) / 255)
+            sample_frame.rotate(o3d.geometry.get_rotation_matrix_from_quaternion(quat))
+            sample_frame.translate(tra + noise)
+            vis.add_geometry(sample_frame)
 
     if tra_gt is not None and quat_gt is not None:
-        gt_frame = o3d.geometry.TriangleMesh.create_coordinate_frame(
-            size=0.5, origin=[0.0, 0.0, 0.0]
-        )
-        gt_frame.rotate(o3d.geometry.get_rotation_matrix_from_quaternion(quat_gt))
-        gt_frame.translate(tra_gt)
-        vis.add_geometry(gt_frame)
+        noises = np.random.uniform(-1, 1, size=(100, 3)) * 0.008
+        colors = np.array([[1, 0, 0], [0, 1, 0], [0, 0.4, 1]])
+        for tra, quat, color in zip(tra_gt, quat_gt, cycle(colors)):
+            for noise in noises:
+                gt_frame = o3d.geometry.LineSet.create_camera_visualization(
+                    540, 960, intrinsic, np.eye(4), scale=0.4
+                )
+                gt_frame.paint_uniform_color(color)
+                gt_frame.rotate(o3d.geometry.get_rotation_matrix_from_quaternion(quat))
+                gt_frame.translate(tra + noise)
+                vis.add_geometry(gt_frame)
 
     view_control = vis.get_view_control()
     view_control.convert_from_pinhole_camera_parameters(vis_camera)
@@ -781,10 +1074,20 @@ def plot_tra_hist_on_plane(
     ax.set_xticks([])
     ax.set_yticks([])
 
-    ax.hist2d(*tra_samples.T[:2], bins=50, range=[xlim, ylim])
+    ax.hist2d(*tra_samples.T[:2], bins=50, range=[xlim, ylim], cmap="plasma")
 
+    colors = np.array([[1, 0, 0], [0, 1, 0], [0, 0.4, 1]])
     if tra_gt is not None:
-        ax.scatter(*tra_gt.T[:2], s=20, color="red")
+        for tra, color in zip(tra_gt, cycle(colors)):
+            ax.add_patch(
+                Circle(
+                    xy=tra[[0, 1]],
+                    radius=0.7,
+                    linewidth=7,
+                    facecolor="none",
+                    edgecolor=color,
+                )
+            )
 
 
 def plot_rot_hist_on_plane(
@@ -793,6 +1096,7 @@ def plot_rot_hist_on_plane(
     title: str,
     quat_samples: np.ndarray,
     quat_gt: Optional[np.ndarray] = None,
+    quat_pred: Optional[np.ndarray] = None,
 ) -> None:
     """Plot rotation samples in a histogram on a 2D plane.
 
@@ -806,30 +1110,70 @@ def plot_rot_hist_on_plane(
         title: title of the subplot
         quat_samples: samples to be plotted in quaternions [w, x, y, z], shape (N, 4)
         quat_gt: groundtruth quaternions [w, x, y, z] plotted as circles, shape (M, 4)
+        quat_pred: single prediction quaternion [w, x, y, z], shape (4,)
     """
     ax = figure.add_subplot(position, projection="mollweide")
     ax.grid(True)
     ax.set_title(title)
     ax.set_xticklabels([])
     ax.set_yticklabels([])
+
+    rot_samples = quat_to_rotmat(quat_samples)
+    rot_gt = quat_to_rotmat(quat_gt)
+    angle = 2.1
+    rotmat = np.array(
+        [
+            [np.cos(angle), -np.sin(angle), 0],
+            [np.sin(angle), np.cos(angle), 0],
+            [0, 0, 1],
+        ]
+    )
+    rot_samples = rotmat @ rot_samples
+    rot_gt = rotmat @ rot_gt
+    quat_samples = rotmat_to_quat(rot_samples)
+    quat_gt = rotmat_to_quat(rot_gt)
+
     hopf_samples = quat_to_hopf(quat_samples)
     hist, phi_edges, theta_edges = np.histogram2d(
         *hopf_samples.T[:2],
         bins=50,
         range=[[-np.pi, np.pi], [-np.pi / 2, np.pi / 2]],
     )
+    hist = np.concatenate((hist, np.zeros((1, hist.shape[1]))), axis=0)
+    hist = np.concatenate((hist, np.zeros((hist.shape[0], 1))), axis=1)
     ax.pcolor(
-        phi_edges[:-1],
-        theta_edges[:-1],
+        phi_edges,
+        theta_edges,
         hist.T,  # transpose from (row, column) to (x, y)
-        cmap=mpl.cm.viridis,
+        cmap=mpl.cm.plasma,
         shading="auto",
         vmin=0,
         vmax=np.max(hist),
     )
+    colors = np.array([[1, 0, 0], [0, 1, 0], [0, 0.4, 1]])
     if quat_gt is not None:
         hopf_gt = quat_to_hopf(quat_gt)
-        ax.scatter(*hopf_gt.T[:2], s=20, color="red")
+        for hopf, color in zip(hopf_gt, cycle(colors)):
+            ax.add_patch(
+                Circle(
+                    xy=hopf[:2],
+                    radius=0.4,
+                    linewidth=5,
+                    facecolor="none",
+                    edgecolor=color,
+                )
+            )
+    if quat_pred is not None:
+        hopf_pred = quat_to_hopf(quat_pred[None, :])[0]
+        ax.add_patch(
+            Circle(
+                xy=hopf_pred[:2],
+                radius=0.3,
+                linewidth=2,
+                facecolor="none",
+                edgecolor="magenta",
+            )
+        )
 
 
 def plot_tra_colored_on_plane(
@@ -865,7 +1209,7 @@ def plot_tra_colored_on_plane(
     ax.set_xticks([])
     ax.set_yticks([])
     ax.scatter(
-        *tra_samples.T[:2], s=10, color=colormap.to_rgba(np.arange(len(tra_samples)))
+        *tra_samples.T[:2], s=50, color=colormap.to_rgba(np.arange(len(tra_samples)))
     )
 
 
@@ -925,4 +1269,4 @@ def plot_code_colored_on_plane(
         ax.scatter(*codes.T, s=10, color=colormap.to_rgba(np.arange(len(codes))))
     else:
         for i, code in enumerate(codes):
-            ax.scatter(*code.T, s=10, color=colormap.to_rgba(i))
+            ax.scatter(*code.T, s=50, color=colormap.to_rgba(i))
