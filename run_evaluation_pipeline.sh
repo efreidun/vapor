@@ -3,16 +3,18 @@
 repo_dir_path=$(dirname $(realpath $0))
 scripts_dir_path="$repo_dir_path/vaincapo/scripts"
 ingp_dir_path="$HOME/code/instant-ngp"
-dataset_dir_path="$HOME/data/Ambiguous_ReLoc_Dataset"
 
 render_height=240
 render_width=135
 
-for run in "jumping-fog-244"
+for run in $1
 do
     run_dir_path="$repo_dir_path/runs/$run"
     scene=$(yq .sequence $run_dir_path/config.yaml)
+    dataset=$(yq .dataset $run_dir_path/config.yaml)
+    dataset_dir_path="$HOME/data/$dataset"
     scene_dir_path="$dataset_dir_path/$scene"
+    echo $scene_dir_path
     echo "evaluating run $run in scene $scene"
     python $scripts_dir_path/evaluate_pipeline.py $run
     python $ingp_dir_path/scripts/run.py \
@@ -24,5 +26,5 @@ do
         --height $render_height
     python $scripts_dir_path/evaluate_renders.py $run \
        --width $render_width --height $render_height
-    python $scripts_dir_path/visualize_samples.py $run
+    python $scripts_dir_path/visualize_samples.py $run --dataset $dataset --norender
 done

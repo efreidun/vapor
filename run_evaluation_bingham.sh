@@ -8,13 +8,15 @@ dataset_dir_path="$HOME/data/Ambiguous_ReLoc_Dataset"
 render_height=240
 render_width=135
 
-for scene in "blue_chairs" "meeting_table" "staircase"
-do for num_coeff in 10 25 50 5
+for scene in "blue_chairs" "seminar" "meeting_table" "staircase" "staircase_ext"
+do for num_coeff in 50 10
     do
         run=$scene"_"$num_coeff
         run_dir_path="$repo_dir_path/bingham_runs/$run"
         scene_dir_path="$dataset_dir_path/$scene"
         echo "evaluating run $run"
+        python $scripts_dir_path/visualize_mixture.py $run
+        python $scripts_dir_path/simulate_dist.py $run
         python $scripts_dir_path/evaluate_samples.py $run
         python $ingp_dir_path/scripts/run.py \
             --mode nerf \
@@ -26,6 +28,6 @@ do for num_coeff in 10 25 50 5
         python $scripts_dir_path/evaluate_renders.py $run \
             --source bingham --width $render_width --height $render_height
         python $scripts_dir_path/visualize_samples.py $run \
-            --source bingham
+            --source bingham --norender
     done
 done
