@@ -1,5 +1,5 @@
-# VaInCaPo
-Variational Inference of Camera Pose Posterior Distribution
+# VaPoR
+A Probabilistic Framework for Visual Localization in Ambiguous Scenes
 
 ## Usage
 Clone the repository and install it, for example, with
