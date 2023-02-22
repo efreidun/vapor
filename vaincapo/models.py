@@ -191,3 +191,29 @@ class PoseMap(nn.Module):
     def get_latent_dim(self) -> int:
         """Retrieve latent dimension of the model."""
         return self._latent_dim
+
+
+class Sinusoid(nn.Linear):
+    """Child class for sinusoidal encoding layer."""
+
+    def __init__(
+        self,
+        in_features: int,
+        out_features: int,
+        mu: float,
+        sigma: float,
+    ) -> None:
+        """Initialize sinusoidal encoding layer.
+
+        Args:
+            in_features: number of input connections to the layer
+            out_features: number of nodes in the layer
+            mu: mean of normal distribution for weight initialization
+            sigma: standard deviation of normal distribution for weight initialization
+        """
+        super().__init__(in_features, out_features, False)
+        nn.init.normal_(self.weight, mu, sigma)
+
+    def forward(self, input: torch.Tensor) -> torch.Tensor:
+        """Forward pass of sinusoidal encoding layer."""
+        return torch.sin(nn.functional.linear(input, self.weight))
