@@ -83,12 +83,12 @@ def main(config: dict) -> None:
         "image_size": train_cfg.image_size,
         "mode": train_cfg.image_mode,
         "crop": train_cfg.image_crop,
-        "gauss_kernel": train_cfg.gauss_kernel,
-        "gauss_sigma": train_cfg.gauss_sigma,
-        "jitter_brightness": train_cfg.jitter_brightness,
-        "jitter_contrast": train_cfg.jitter_contrast,
-        "jitter_saturation": train_cfg.jitter_saturation,
-        "jitter_hue": train_cfg.jitter_hue,
+        "gauss_kernel": None,
+        "gauss_sigma": None,
+        "jitter_brightness": None,
+        "jitter_contrast": None,
+        "jitter_saturation": None,
+        "jitter_hue": None,
     }
     if train_cfg.dataset in ("AmbiguousReloc", "SketchUpCircular"):
         dataset_cfg["half_image"] = train_cfg.half_image
@@ -119,13 +119,7 @@ def main(config: dict) -> None:
 
     encoder = Encoder(train_cfg.latent_dim, train_cfg.backbone)
     encoder.load_state_dict(torch.load(encoder_path, map_location=device))
-    posemap = PoseMap(
-        train_cfg.latent_dim,
-        train_cfg.map_depth,
-        train_cfg.map_breadth,
-        train_cfg.map_sin_mu,
-        train_cfg.map_sin_sigma,
-    )
+    posemap = PoseMap(train_cfg.latent_dim, train_cfg.map_depth, train_cfg.map_breadth)
     posemap.load_state_dict(torch.load(posemap_path, map_location=device))
     encoder.to(device)
     posemap.to(device)
