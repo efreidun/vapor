@@ -29,7 +29,7 @@ def parse_arguments() -> dict:
     )
     parser.add_argument("run", type=str)
     parser.add_argument("--dataset", type=str, default="AmbiguousReloc")
-    parser.add_argument("--num_renders", type=int, default=10)
+    parser.add_argument("--num_renders", type=int, default=0)
     args = parser.parse_args()
 
     return vars(args)
@@ -38,7 +38,7 @@ def parse_arguments() -> dict:
 def main(config: dict) -> None:
     recall_thresholds = [[0.1, 10.0], [0.2, 15.0], [0.3, 20.0], [1.0, 60.0]]
     kde_gaussian_sigmas = np.linspace(0.01, 0.50, num=2, endpoint=True)
-    kde_bingham_lambdas = np.linspace(100.0, 400.0, num=2, endpoint=True)
+    kde_bingham_lambdas = np.linspace(10.0, 400.0, num=2, endpoint=True)
     recall_min_samples = [100]
 
     cfg = SimpleNamespace(**config)
@@ -106,7 +106,7 @@ def main(config: dict) -> None:
             ]
         )
 
-        if split_name == "valid":
+        if config["num_renders"] != 0 and split_name == "valid":
             scene = "_".join(cfg.run.split("_")[:-1])
             scene_path = Path.home() / "data" / cfg.dataset / scene
             write_sample_transforms(

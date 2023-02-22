@@ -46,7 +46,7 @@ def main(config: dict) -> None:
         run_path = base_path / "runs" / cfg.run
         with open(run_path / "config.yaml") as f:
             train_config = yaml.load(f, Loader=yaml.FullLoader)
-        scene = train_config["sequence"]
+        scene = train_config["sequence"] # ["value"]
     else:
         run_path = base_path / "bingham_runs" / cfg.run
         scene = "_".join(cfg.run.split("_")[:-1])
@@ -91,8 +91,8 @@ def main(config: dict) -> None:
                 cfg.run + " : " + query_file_name[:-4],
                 query_renders[i] if plot_renders else None,
                 sample_renders[i, : cfg.num_samples] if plot_renders else None,
-                data["tra_gt"][i],
-                data["rot_gt"][i],
+                data["tra_gt"][[i]], # [[i, 33, 148]],
+                data["rot_gt"][[i]], # [[i, 33, 148]],
                 plot_path,
             )
 

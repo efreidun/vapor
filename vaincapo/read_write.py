@@ -267,6 +267,17 @@ def read_poses(
         tvecs = parsed_poses[:, 1:4].astype(float)
         rotmats = quat_to_rotmat(parsed_poses[:, 4:].astype(float))
         return seq_ids, img_ids, tvecs, rotmats, file_paths
+    elif dataset == "Rig":
+        parsed_poses = np.array(
+            [[entry for entry in line.strip().split()] for line in content],
+            dtype=np.float32,
+        )
+        seq_ids = parsed_poses[:, 0].astype(int)
+        img_ids = parsed_poses[:, 1].astype(int)
+        tvecs = parsed_poses[:, 2:5]
+        rotmats = quat_to_rotmat(parsed_poses[:, 5:])
+        return seq_ids, img_ids, tvecs, rotmats
+
     else:
         raise ValueError("Invalid dataset name.")
 
@@ -318,6 +329,11 @@ def compute_scene_dims(
                 read_poses(scene_path / split_file_path, dataset)[2]
                 for split_file_path in ("dataset_train.txt", "dataset_test.txt")
             ]
+        )
+    elif dataset == "Rig":
+        poses_paths = scene_path.glob("**/poses.txt")
+        positions = np.concatenate(
+            [read_poses(poses_path, dataset)[2] for poses_path in poses_paths]
         )
     elif dataset == "SketchUpCircular":
         sin = 1 / np.sqrt(3)

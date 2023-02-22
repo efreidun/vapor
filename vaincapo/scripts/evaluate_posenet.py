@@ -8,7 +8,7 @@ import argparse
 import torch
 from tqdm import tqdm
 
-from vaincapo.data import AmbiguousReloc
+from vaincapo.data import AmbiguousReloc, Rig
 from vaincapo.utils import quat_to_rotmat
 from vaincapo.evaluation import evaluate_recall
 from vaincapo.read_write import write_sample_transforms
@@ -24,6 +24,7 @@ def parse_arguments() -> dict:
         description="Evaluate camera pose posterior samples."
     )
     parser.add_argument("path", type=str)
+    parser.add_argument("dataset", type=str)
     parser.add_argument("scene", type=str)
     parser.add_argument("--num_renders", type=int, default=10)
     args = parser.parse_args()
@@ -89,8 +90,11 @@ def main(config: dict) -> None:
 
     print(recall)
 
-    scene_path = Path.home() / "data/AmbiguousReloc" / cfg.scene
-    valid_set = AmbiguousReloc(scene_path / "test", 64)
+    scene_path = Path.home() / "data" / cfg.dataset / cfg.scene
+    valid_set = (
+        AmbiguousReloc(scene_path / "test", 224)
+        if cfg.dataset == "AmbiguousReloc" else Rig(scene_path / "test", 224)
+    )
 
     names = []
     idcs = []

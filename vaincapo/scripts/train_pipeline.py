@@ -18,6 +18,7 @@ from vaincapo.data import (
     SevenScenes,
     CambridgeLandmarks,
     SketchUpCircular,
+    Rig,
 )
 from vaincapo.models import Encoder, PoseMap
 from vaincapo.read_write import read_scene_dims, compute_scene_dims
@@ -44,31 +45,29 @@ def parse_arguments() -> dict:
     parser.add_argument("--sequence", type=str)
     parser.add_argument("--load_encoder", type=str, default=None)
     parser.add_argument("--load_posemap", type=str, default=None)
-    parser.add_argument("--epochs", type=int, default=500)
+    parser.add_argument("--epochs", type=int, default=2000)
     parser.add_argument("--lr", type=float, default=1e-4)
     parser.add_argument("--scheduler_gamma", type=float, default=0.8)
     parser.add_argument("--scheduler_step", type=int, default=50)
     parser.add_argument("--scheduler_end", type=int, default=500)
     parser.add_argument("--weight_decay", type=float, default=0)
-    parser.add_argument("--batch_size", type=int, default=64)
+    parser.add_argument("--batch_size", type=int, default=4)
     parser.add_argument("--half_image", action="store_true")
     parser.add_argument("--image_size", type=int, default=224)
-    parser.add_argument("--image_mode", type=str, default="posenet")
+    parser.add_argument("--image_mode", type=str, default="ceiling_train")
     parser.add_argument("--image_crop", type=float, default=None)
-    parser.add_argument("--gauss_kernel", type=int, default=None)  # 3)
-    parser.add_argument(
-        "--gauss_sigma", type=float, nargs="*", default=None
-    )  # (0.001, 1.0))
-    parser.add_argument("--jitter_brightness", type=float, default=None)  # 0.05)
-    parser.add_argument("--jitter_contrast", type=float, default=None)  # 0.05)
-    parser.add_argument("--jitter_saturation", type=float, default=None)  # 0.05)
-    parser.add_argument("--jitter_hue", type=float, default=None)  # 0.05)
+    parser.add_argument("--gauss_kernel", type=int, default=3)
+    parser.add_argument("--gauss_sigma", type=float, nargs="*", default=(0.05, 5.0))
+    parser.add_argument("--jitter_brightness", type=float, default=0.7)
+    parser.add_argument("--jitter_contrast", type=float, default=0.7)
+    parser.add_argument("--jitter_saturation", type=float, default=0.7)
+    parser.add_argument("--jitter_hue", type=float, default=0.5)
     parser.add_argument("--latent_dim", type=int, default=16)
     parser.add_argument("--backbone", type=str, default="resnet18")
     parser.add_argument("--map_depth", type=int, default=3)
     parser.add_argument("--map_breadth", type=int, default=128)
     parser.add_argument("--num_samples", type=int, default=1000)
-    parser.add_argument("--top_percent", type=float, default=0.2)
+    parser.add_argument("--top_percent", type=float, default=0.05)
     parser.add_argument("--tra_weight", type=float, default=5)
     parser.add_argument("--rot_weight", type=float, default=2)
     parser.add_argument("--wta_weight", type=float, default=1)
@@ -78,7 +77,7 @@ def parse_arguments() -> dict:
     parser.add_argument("--kde_gaussian_sigma", type=float, default=0.1)
     parser.add_argument("--kde_bingham_lambda", type=float, default=40.0)
     parser.add_argument("--recall_min_samples", type=int, default=100)
-    parser.add_argument("--num_workers", type=int, default=8)
+    parser.add_argument("--num_workers", type=int, default=2)
     parser.add_argument("--device", type=str)
     args = parser.parse_args()
 
@@ -127,18 +126,34 @@ def main(config: dict) -> None:
         "jitter_saturation": cfg.jitter_saturation,
         "jitter_hue": cfg.jitter_hue,
     }
+    valid_dataset_cfg = {
+        "image_size": cfg.image_size,
+        "mode": cfg.image_mode,
+        "crop": cfg.image_crop,
+        "gauss_kernel": None,
+        "gauss_sigma": None,
+        "jitter_brightness": None,
+        "jitter_contrast": None,
+        "jitter_saturation": None,
+        "jitter_hue": None,
+    }
+    if cfg.dataset in ("AmbiguousReloc", "SketchUpCircular"):
+        dataset_cfg["half_image"] = cfg.half_image
     if cfg.dataset == "AmbiguousReloc":
         train_set = AmbiguousReloc(scene_path / "train", **dataset_cfg)
-        valid_set = AmbiguousReloc(scene_path / "test", **dataset_cfg)
+        valid_set = AmbiguousReloc(scene_path / "test", **valid_dataset_cfg)
     elif cfg.dataset == "SevenScenes":
         train_set = SevenScenes(scene_path / "train", **dataset_cfg)
-        valid_set = SevenScenes(scene_path / "test", **dataset_cfg)
+        valid_set = SevenScenes(scene_path / "test", **valid_dataset_cfg)
     elif cfg.dataset == "CambridgeLandmarks":
         train_set = CambridgeLandmarks(scene_path / "dataset_train.txt", **dataset_cfg)
-        valid_set = CambridgeLandmarks(scene_path / "dataset_test.txt", **dataset_cfg)
+        valid_set = CambridgeLandmarks(scene_path / "dataset_test.txt", **valid_dataset_cfg)
     elif cfg.dataset == "SketchUpCircular":
         train_set = SketchUpCircular(scene_path, "train", **dataset_cfg)
-        valid_set = SketchUpCircular(scene_path, "valid", **dataset_cfg)
+        valid_set = SketchUpCircular(scene_path, "valid", **valid_dataset_cfg)
+    elif cfg.dataset == "Rig":
+        train_set = Rig(scene_path / "train", **dataset_cfg)
+        valid_set = Rig(scene_path / "test", **valid_dataset_cfg)
     else:
         raise ValueError("Invalid dataset.")
 
@@ -146,12 +161,14 @@ def main(config: dict) -> None:
         train_set,
         batch_size=cfg.batch_size,
         shuffle=True,
+        pin_memory=True,
         num_workers=cfg.num_workers,
     )
     valid_loader = DataLoader(
         valid_set,
         batch_size=cfg.batch_size,
         shuffle=True,
+        pin_memory=True,
         num_workers=cfg.num_workers,
     )
 
@@ -226,7 +243,7 @@ def main(config: dict) -> None:
                     rotmat_to_quat(rot_hat.reshape(-1, 3, 3).cpu().numpy())
                 ).reshape(*rot_hat.shape[:2], 4)
                 tra_log_likelihood = evaluate_tras_likelihood(
-                    tra, tra_hat, cfg.kde_gaussian_sigma
+                    tra.float(), tra_hat.float(), cfg.kde_gaussian_sigma
                 )
                 rot_log_likelihood = evaluate_rots_likelihood(
                     rot_quat, rot_quat_hat, cfg.kde_bingham_lambda
@@ -317,7 +334,7 @@ def main(config: dict) -> None:
                 rotmat_to_quat(rot_hat.reshape(-1, 3, 3).cpu().numpy())
             ).reshape(*rot_hat.shape[:2], 4)
             tra_log_likelihood = evaluate_tras_likelihood(
-                tra, tra_hat, cfg.kde_gaussian_sigma
+                tra.float(), tra_hat.float(), cfg.kde_gaussian_sigma
             )
             rot_log_likelihood = evaluate_rots_likelihood(
                 rot_quat, rot_quat_hat, cfg.kde_bingham_lambda
@@ -361,6 +378,8 @@ def main(config: dict) -> None:
                 run_path / f"posemap_{str(epoch + 1).zfill(epochs_digits)}.pth",
             )
 
+    torch.save(encoder.state_dict(), run_path / f"encoder_{cfg.epochs}.pth")
+    torch.save(posemap.state_dict(), run_path / f"posemap_{cfg.epochs}.pth")
     wandb.save(str(run_path / f"encoder_{cfg.epochs}.pth"))
     wandb.save(str(run_path / f"posemap_{cfg.epochs}.pth"))
 

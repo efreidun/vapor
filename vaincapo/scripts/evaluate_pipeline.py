@@ -15,6 +15,7 @@ from vaincapo.data import (
     SevenScenes,
     CambridgeLandmarks,
     SketchUpCircular,
+    Rig,
 )
 from vaincapo.models import Encoder, PoseMap
 from vaincapo.inference import forward_pass
@@ -57,7 +58,7 @@ def parse_arguments() -> dict:
 def main(config: dict) -> None:
     recall_thresholds = [[0.1, 10.0], [0.2, 15.0], [0.3, 20.0], [1.0, 60.0]]
     kde_gaussian_sigmas = np.linspace(0.01, 0.50, num=2, endpoint=True)
-    kde_bingham_lambdas = np.linspace(100.0, 400.0, num=2, endpoint=True)
+    kde_bingham_lambdas = np.linspace(10.0, 400.0, num=2, endpoint=True)
     cfg = SimpleNamespace(**config)
     recall_min_samples = [cfg.num_samples // 10]
 
@@ -89,6 +90,8 @@ def main(config: dict) -> None:
         "jitter_saturation": train_cfg.jitter_saturation,
         "jitter_hue": train_cfg.jitter_hue,
     }
+    if train_cfg.dataset in ("AmbiguousReloc", "SketchUpCircular"):
+        dataset_cfg["half_image"] = train_cfg.half_image
     if train_cfg.dataset == "AmbiguousReloc":
         train_set = AmbiguousReloc(scene_path / "train", **dataset_cfg)
         valid_set = AmbiguousReloc(scene_path / "test", **dataset_cfg)
@@ -101,6 +104,9 @@ def main(config: dict) -> None:
     elif train_cfg.dataset == "SketchUpCircular":
         train_set = SketchUpCircular(scene_path, "train", **dataset_cfg)
         valid_set = SketchUpCircular(scene_path, "valid", **dataset_cfg)
+    elif train_cfg.dataset == "Rig":
+        train_set = Rig(scene_path / "train", **dataset_cfg)
+        valid_set = Rig(scene_path / "test", **dataset_cfg)
     else:
         raise ValueError("Invalid dataset.")
 
@@ -108,12 +114,18 @@ def main(config: dict) -> None:
         encoder_path = sorted(run_path.glob("encoder_*.pth"))[-1]
         posemap_path = sorted(run_path.glob("posemap_*.pth"))[-1]
     else:
-        encoder_path = run_path / f"encoder_{str(cfg.epoch).zfill(3)}.pth"
-        posemap_path = run_path / f"posemap_{str(cfg.epoch).zfill(3)}.pth"
+        encoder_path = run_path / f"encoder_{str(cfg.epoch).zfill(4)}.pth"
+        posemap_path = run_path / f"posemap_{str(cfg.epoch).zfill(4)}.pth"
 
     encoder = Encoder(train_cfg.latent_dim, train_cfg.backbone)
     encoder.load_state_dict(torch.load(encoder_path, map_location=device))
-    posemap = PoseMap(train_cfg.latent_dim, train_cfg.map_depth, train_cfg.map_breadth)
+    posemap = PoseMap(
+        train_cfg.latent_dim,
+        train_cfg.map_depth,
+        train_cfg.map_breadth,
+        train_cfg.map_sin_mu,
+        train_cfg.map_sin_sigma,
+    )
     posemap.load_state_dict(torch.load(posemap_path, map_location=device))
     encoder.to(device)
     posemap.to(device)
@@ -143,7 +155,7 @@ def main(config: dict) -> None:
                 posemap,
                 batch,
                 cfg.num_samples,
-                train_cfg.num_winners,
+                int(train_cfg.top_percent * train_cfg.num_samples),
                 train_cfg.tra_weight,
                 train_cfg.rot_weight,
                 scene_dims,
@@ -189,7 +201,7 @@ def main(config: dict) -> None:
         )
         tra_log_likelihoods.append(
             [
-                evaluate_tras_likelihood(tra, tra_hat, sigma).item()
+                evaluate_tras_likelihood(tra.float(), tra_hat, sigma).item()
                 for sigma in tqdm(kde_gaussian_sigmas)
             ]
         )
