@@ -1,0 +1,16 @@
+healpy==1.15.2
+matplotlib==3.4.3
+numpy==1.21.6
+open3d==0.13.0
+opencv_python==4.3.0.36
+Pillow==9.4.0
+PyYAML==6.0
+scikit_image==0.18.3
+scikit_learn==1.2.1
+scipy==1.7.1
+setuptools==45.2.0
+skimage==0.0
+tikzplotlib==0.10.1
+torch==1.9.0
+torchvision==0.10.0
+tqdm==4.62.3
