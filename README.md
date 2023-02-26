@@ -70,3 +70,14 @@ You can then visualize the samples predicted by the pretrained model by the visu
 python vapor/scripts/visualize_samples.py RUNNAME
 ```
 The results will be saved at `vapor/runs/RUNNAME/plots/`.
+
+## Citation
+If you find this library useful in your research, consider citing our publication:
+```
+@article{zangeneh2023vapor,
+  title={A Probabilistic Framework for Visual Localization in Ambiguous Scenes},
+  author={Zangeneh, Fereidoon and Bruns, Leonard and Dekel, Amit and Pieropan, Alessandro and Jensfelt, Patric},
+  journal={arXiv preprint arXiv:2301.02086},
+  year={2023}
+}
+```
