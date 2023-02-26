@@ -64,7 +64,7 @@ def parse_arguments() -> dict:
     parser.add_argument("--jitter_hue", type=float, default=0.5)
     parser.add_argument("--latent_dim", type=int, default=16)
     parser.add_argument("--backbone", type=str, default="resnet18")
-    parser.add_argument("--map_depth", type=int, default=3)
+    parser.add_argument("--map_depth", type=int, default=9)
     parser.add_argument("--map_breadth", type=int, default=128)
     parser.add_argument("--num_samples", type=int, default=1000)
     parser.add_argument("--top_percent", type=float, default=0.05)

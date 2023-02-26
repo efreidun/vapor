@@ -10,7 +10,7 @@ from skimage.metrics import structural_similarity as ssim
 from skimage.metrics import mean_squared_error as mse
 from tqdm import tqdm
 
-from vaincapo.read_write import read_rendered_samples
+from vapor.read_write import read_rendered_samples
 
 
 def parse_arguments() -> dict:
@@ -35,7 +35,7 @@ def parse_arguments() -> dict:
 
 def main(config: dict) -> None:
     cfg = SimpleNamespace(**config)
-    base_path = Path.home() / "code/vaincapo"
+    base_path = Path.home() / "code/vapor"
 
     assert cfg.source in (
         "pipeline",

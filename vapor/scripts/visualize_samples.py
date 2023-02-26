@@ -91,8 +91,8 @@ def main(config: dict) -> None:
                 cfg.run + " : " + query_file_name[:-4],
                 query_renders[i] if plot_renders else None,
                 sample_renders[i, : cfg.num_samples] if plot_renders else None,
-                data["tra_gt"][[i]]
-                data["rot_gt"][[i]]
+                data["tra_gt"][[i]],
+                data["rot_gt"][[i]],
                 plot_path,
             )
 
