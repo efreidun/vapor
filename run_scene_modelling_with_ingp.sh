@@ -1,7 +1,7 @@
 #!/bin/bash
 
 ingp_dir_path="$HOME/code/instant-ngp"
-dataset_dir_path="$HOME/data/Ambiguous_ReLoc_Dataset"
+dataset_dir_path="$HOME/data/AmbiguousReloc"
 
 for scene in "meeting_table"
 do

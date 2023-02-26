@@ -1,9 +1,9 @@
 #!/bin/bash
 
 repo_dir_path=$(dirname $(realpath $0))
-scripts_dir_path="$repo_dir_path/vaincapo/scripts"
+scripts_dir_path="$repo_dir_path/vapor/scripts"
 ingp_dir_path="$HOME/code/instant-ngp"
-dataset_dir_path="$HOME/data/Ambiguous_ReLoc_Dataset"
+dataset_dir_path="$HOME/data/AmbiguousReloc"
 
 render_height=240
 render_width=135

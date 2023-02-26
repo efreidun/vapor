@@ -1,12 +1,12 @@
 #!/bin/bash
 
 ingp_dir_path="$HOME/code/instant-ngp"
-dataset_dir_path="$HOME/data/Ambiguous_ReLoc_Dataset"
+dataset_dir_path="$HOME/data/AmbiguousReloc"
 
 render_height=240
 render_width=135
 
-for scene in "staircase_ext"
+for scene in "blue_chairs" "meeting_table" "staircase" "staircase_ext" "seminar"
 do
     echo "rendering test images in scene $scene"
     scene_dir_path="$dataset_dir_path/$scene"

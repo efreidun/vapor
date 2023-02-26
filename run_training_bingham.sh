@@ -1,7 +1,7 @@
 #!/bin/bash
 
 repo_dir_path=$(dirname $(realpath $0))
-scripts_dir_path="$repo_dir_path/vaincapo/scripts"
+scripts_dir_path="$repo_dir_path/vapor/scripts"
 bingham_dir_path="$HOME/code/torch_bingham/cam_reloc"
 
 for sequence in "blue_chairs" "meeting_table" "staircase" "staircase_ext" "seminar"
