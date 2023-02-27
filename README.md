@@ -2,7 +2,7 @@
 PyTorch source code for the _**Va**riational **Po**se **R**egression_ method proposed in the ICRA 2023 paper [A Probabilistic Framework for Visual Localization in Ambiguous Scenes](https://arxiv.org/abs/2301.02086).
 
 ## Dependencies
-All python dependencies of the project are listed in the `requirement.txt` file, installed by `pip install -r requirements-dev.txt`. In addition to these, and optionally
+All python dependencies of the project are listed in the `requirement.txt` file, installed by `pip install -r requirements.txt`. In addition to these, and optionally
 1. [Deep Bingham Networks](https://github.com/Multimodal3DVision/torch_bingham) package is required for computing sample likelihoods, 
 2. [Instant Neural Graphics Primitives](https://github.com/NVlabs/instant-ngp) package is required for modelling scenes and view synthesis from sampled poses, and
 3. [Weights & Biases](https://wandb.ai/) for logging of results.
@@ -74,10 +74,10 @@ The results will be saved at `vapor/runs/RUNNAME/plots/`.
 ## Citation
 If you find this library useful in your research, consider citing our publication:
 ```
-@article{zangeneh2023vapor,
+@inproceedings{zangeneh2023vapor,
   title={A Probabilistic Framework for Visual Localization in Ambiguous Scenes},
   author={Zangeneh, Fereidoon and Bruns, Leonard and Dekel, Amit and Pieropan, Alessandro and Jensfelt, Patric},
-  journal={arXiv preprint arXiv:2301.02086},
+  booktitle={Proceedings of the IEEE International Conference on Robotics and Automation},
   year={2023}
 }
 ```
