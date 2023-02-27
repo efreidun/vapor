@@ -14,8 +14,18 @@ setuptools.setup(
     url="https://github.com/efreidun/vapor",
     packages=setuptools.find_packages(),
     install_requires=[
+        "matplotlib",
         "numpy",
+        "open3d",
+        "opencv_python",
+        "Pillow",
+        "PyYAML",
+        "scipy",
+        "skimage",
+        "tikzplotlib",
         "torch",
+        "torchvision",
+        "tqdm",
     ],
     python_requires=">=3.8",
 )
