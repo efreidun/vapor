@@ -49,6 +49,12 @@ The project codebase assumes the following file structure,
 ```
 where each dataset follows its own structure for images and ground truth pose labels. Refer to `vapor/data.py` for the exact structures.
 
+## Data
+Our recorded data for the ceiling scene can be downloaded [here](https://github.com/efreidun/vapor/releases/download/v0.1.0/ceiling.zip). Ground-truth poses are saved in the `poses.txt` file inside each sequence directory, where each line contains the camera pose (camera-to-world point transformation) for one image sample with the following file format:
+```
+seq_no image_no tx ty tz qw qx qy qz
+```
+
 ## Training and Evaluation
 
 The project contains various tools for evaluation and analysis of results, including many tools that were not included in the paper. A minimal guide to train and evaluate the pipeline is provided below. However, feel free to explore the available tools.
