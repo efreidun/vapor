@@ -21,7 +21,7 @@ setuptools.setup(
         "Pillow",
         "PyYAML",
         "scipy",
-        "skimage",
+        "scikit-image",
         "tikzplotlib",
         "torch",
         "torchvision",

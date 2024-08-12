@@ -1,0 +1,271 @@
+"""Script for evaluting the pipeline."""
+
+import argparse
+from pathlib import Path
+from types import SimpleNamespace
+
+import numpy as np
+import torch
+import yaml
+from torch.utils.data import DataLoader
+from tqdm import tqdm
+
+from vapor.data import (
+    AmbiguousReloc,
+    CambridgeLandmarks,
+    Rig,
+    SevenScenes,
+    SketchUpCircular,
+    Synthetic,
+)
+from vapor.evaluation import (
+    evaluate_recall,
+    evaluate_rots_likelihood,
+    evaluate_tras_likelihood,
+)
+from vapor.inference import cvaepor_test_forward_pass
+from vapor.losses import euclidean_dist, geodesic_dist
+from vapor.models import CVAEPoRBackbone, CVAEPoRDecoder, CVAEPoREncoder
+from vapor.read_write import (
+    compute_scene_dims,
+    read_scene_dims,
+    write_metrics,
+    write_sample_transforms,
+)
+from vapor.utils import average_pose, rotmat_to_quat
+
+
+def parse_arguments() -> dict:
+    """Parse command line arguments.
+
+    Returns:
+        Passed arguments as dictionary.
+    """
+    parser = argparse.ArgumentParser(
+        description="Evaluate camera pose posterior inference pipeline."
+    )
+    parser.add_argument("run", type=str)
+    parser.add_argument("--epoch", type=int)
+    parser.add_argument("--batch_size", type=int)
+    parser.add_argument("--num_samples", type=int, default=1000)
+    parser.add_argument("--num_renders", type=int, default=10)
+    parser.add_argument("--num_workers", type=int, default=4)
+    parser.add_argument("--device", type=str)
+    args = parser.parse_args()
+
+    return vars(args)
+
+
+def main(config: dict) -> None:
+    recall_thresholds = [[0.1, 10.0], [0.2, 15.0], [0.3, 20.0], [1.0, 60.0]]
+    kde_gaussian_sigmas = np.linspace(0.01, 0.50, num=2, endpoint=True)
+    kde_bingham_lambdas = np.linspace(10.0, 400.0, num=2, endpoint=True)
+    cfg = SimpleNamespace(**config)
+
+    run_path = Path.home() / "code/vapor/runs" / cfg.run
+    with open(run_path / "config.yaml") as f:
+        train_config = yaml.load(f, Loader=yaml.FullLoader)
+    train_cfg = SimpleNamespace(**train_config)
+    recall_min_samples = [cfg.num_samples // (20 if train_cfg.dataset == "Rig" else 10)]
+    if train_cfg.num_samples == 0:
+        cfg.num_samples = 0
+        cfg.num_renders = 1
+        recall_min_samples = [1]
+        print("Running evaluation in single-hypothesis mode.")
+
+    torch.set_grad_enabled(False)
+    device = cfg.device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    scene_path = Path.home() / "data" / train_cfg.dataset / train_cfg.sequence
+    try:
+        scene_dims = read_scene_dims(scene_path)
+    except FileNotFoundError:
+        scene_dims = compute_scene_dims(scene_path, train_cfg.dataset)
+    dataset_cfg = {
+        "image_size": train_cfg.image_size,
+        "mode": "posenet_plusplus"
+        if train_cfg.image_mode == "posenet"
+        else train_cfg.image_mode,
+        "crop": train_cfg.image_crop,
+        "gauss_kernel": None,
+        "gauss_sigma": None,
+        "jitter_brightness": None,
+        "jitter_contrast": None,
+        "jitter_saturation": None,
+        "jitter_hue": None,
+    }
+    if train_cfg.dataset in ("AmbiguousReloc", "SketchUpCircular"):
+        dataset_cfg["half_image"] = train_cfg.half_image
+    if train_cfg.dataset == "AmbiguousReloc":
+        train_set = AmbiguousReloc(scene_path / "train", **dataset_cfg)
+        valid_set = AmbiguousReloc(scene_path / "test", **dataset_cfg)
+    elif train_cfg.dataset == "SevenScenes":
+        train_set = SevenScenes(scene_path / "train", **dataset_cfg)
+        valid_set = SevenScenes(scene_path / "test", **dataset_cfg)
+    elif train_cfg.dataset == "CambridgeLandmarks":
+        train_set = CambridgeLandmarks(scene_path / "dataset_train.txt", **dataset_cfg)
+        valid_set = CambridgeLandmarks(scene_path / "dataset_test.txt", **dataset_cfg)
+    elif train_cfg.dataset == "SketchUpCircular":
+        train_set = SketchUpCircular(scene_path, "train", **dataset_cfg)
+        valid_set = SketchUpCircular(scene_path, "valid", **dataset_cfg)
+    elif train_cfg.dataset == "Rig":
+        train_set = Rig(scene_path / "train", **dataset_cfg)
+        valid_set = Rig(scene_path / "test", **dataset_cfg)
+    elif cfg.dataset == "Synthetic":
+        train_set = Synthetic(scene_path, "train")
+        valid_set = Synthetic(scene_path, "valid")
+    else:
+        raise ValueError("Invalid dataset.")
+
+    if cfg.epoch is None:
+        encoder_path = sorted(run_path.glob("encoder_*.pth"))[-1]
+        decoder_path = sorted(run_path.glob("decoder_*.pth"))[-1]
+        backbone_path = sorted(run_path.glob("backbone_*.pth"))[-1]
+    else:
+        encoder_path = run_path / f"encoder_{str(cfg.epoch).zfill(5)}.pth"
+        decoder_path = run_path / f"decoder_{str(cfg.epoch).zfill(5)}.pth"
+        backbone_path = run_path / f"backbone_{str(cfg.epoch).zfill(5)}.pth"
+
+    decoder = CVAEPoRDecoder(
+        train_cfg.latent_dim,
+        train_cfg.decoder_depth,
+        train_cfg.decoder_breadth,
+        train_cfg.bottleneck_dim,
+    )
+    decoder.load_state_dict(torch.load(decoder_path, map_location=device))
+    backbone = CVAEPoRBackbone(
+        train_cfg.backbone,
+    )
+    backbone.load_state_dict(torch.load(backbone_path, map_location=device))
+    decoder.to(device)
+    backbone.to(device)
+    decoder.eval()
+    backbone.eval()
+
+    recalls = []
+    tra_log_likelihoods = []
+    rot_log_likelihoods = []
+    median_errors = []
+
+    split_sets = {"train": train_set, "valid": valid_set}
+    for split_name, split_set in split_sets.items():
+        dataloader = DataLoader(
+            split_set,
+            batch_size=cfg.batch_size or len(split_set),
+            num_workers=cfg.num_workers,
+        )
+        tras = []
+        rots = []
+        tra_hats = []
+        rot_hats = []
+        names = []
+        for batch in dataloader:
+            (
+                tra,
+                rot,
+                tra_hat,
+                rot_hat,
+                _,
+                _,
+                _,
+                _,
+            ) = cvaepor_test_forward_pass(
+                decoder,
+                backbone,
+                batch,
+                cfg.num_samples,
+                train_cfg.tra_weight,
+                train_cfg.rot_weight,
+                scene_dims,
+                device,
+            )
+            tras.append(tra)
+            rots.append(rot)
+            tra_hats.append(tra_hat)
+            rot_hats.append(rot_hat)
+            names.extend(batch[2])
+        tra = torch.cat(tras)
+        tra_hat = torch.cat(tra_hats)
+        rot = torch.cat(rots)
+        rot_hat = torch.cat(rot_hats)
+
+        rot_quat = rotmat_to_quat(rot.cpu().numpy())
+        rot_quat_hat = rotmat_to_quat(rot_hat.reshape(-1, 3, 3).cpu().numpy()).reshape(
+            *rot_hat.shape[:2], 4
+        )
+        np.savez(
+            run_path / f"{split_name}.npz",
+            tra_gt=tra.cpu().numpy(),
+            rot_gt=rot_quat,
+            tra_samples=tra_hat.cpu().numpy(),
+            rot_samples=rot_quat_hat,
+            names=names,
+        )
+        rot_quat = torch.from_numpy(rot_quat)
+        rot_quat_hat = torch.from_numpy(rot_quat_hat)
+
+        recalls.append(
+            [
+                evaluate_recall(
+                    tra,
+                    tra_hat,
+                    rot,
+                    rot_hat,
+                    recall_thresholds,
+                    recall_min_sample,
+                )
+                for recall_min_sample in tqdm(recall_min_samples)
+            ]
+        )
+        tra_log_likelihoods.append(
+            [
+                evaluate_tras_likelihood(tra.float(), tra_hat, sigma).item()
+                for sigma in tqdm(kde_gaussian_sigmas)
+            ]
+        )
+        rot_log_likelihoods.append(
+            [
+                evaluate_rots_likelihood(rot_quat, rot_quat_hat, sigma).item()
+                for sigma in tqdm(kde_bingham_lambdas)
+            ]
+        )
+
+        tra_hat_point, rot_hat_point = average_pose(tra_hat, rot_hat)
+        median_errors.append(
+            [
+                torch.median(euclidean_dist(tra_hat_point[:, None, :], tra)).item(),
+                torch.median(
+                    geodesic_dist(rot_hat_point[:, None, :], rot, deg=True)
+                ).item(),
+            ]
+        )
+
+        if train_cfg.dataset == "AmbiguousReloc" and split_name == "valid":
+            write_sample_transforms(
+                tra_hat.cpu().numpy(),
+                rot_hat.cpu().numpy(),
+                names,
+                cfg.num_renders,
+                run_path,
+                scene_path,
+                split_name,
+            )
+
+    write_metrics(
+        median_errors,
+        recalls,
+        tra_log_likelihoods,
+        rot_log_likelihoods,
+        recall_thresholds,
+        recall_min_samples,
+        kde_gaussian_sigmas,
+        kde_bingham_lambdas,
+        split_sets.keys(),
+        f"{cfg.run} epoch {int(encoder_path.stem.split('_')[1])}"
+        + f" with {cfg.num_samples} samples",
+        run_path,
+    )
+
+
+if __name__ == "__main__":
+    config = parse_arguments()
+    main(config)

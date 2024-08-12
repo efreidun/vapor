@@ -8,4 +8,5 @@ do
     echo "starting scene $scene"
     python $scripts_dir_path/prepare_scene_json.py $scene --dataset AmbiguousReloc
     python $scripts_dir_path/prepare_scene_json.py $scene --split test --dataset AmbiguousReloc
+    python $scripts_dir_path/prepare_scene_json.py $scene --split train --dataset AmbiguousReloc
 done

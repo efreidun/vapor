@@ -60,12 +60,14 @@ def main(config: dict) -> None:
     kde_gaussian_sigmas = np.linspace(0.01, 0.50, num=2, endpoint=True)
     kde_bingham_lambdas = np.linspace(10.0, 400.0, num=2, endpoint=True)
     cfg = SimpleNamespace(**config)
-    recall_min_samples = [cfg.num_samples // 10]
 
     run_path = Path.home() / "code/vapor/runs" / cfg.run
     with open(run_path / "config.yaml") as f:
         train_config = yaml.load(f, Loader=yaml.FullLoader)
     train_cfg = SimpleNamespace(**train_config)
+    recall_min_samples = [
+        cfg.num_samples // (20 if train_cfg.dataset == "Rig" else 10)
+    ]
     if train_cfg.num_samples == 0:
         cfg.num_samples = 0
         cfg.num_renders = 1

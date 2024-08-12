@@ -2,9 +2,108 @@
 
 from typing import Union
 
+import matplotlib.pyplot as plt
 import numpy as np
-from scipy.spatial.transform import Rotation
 import torch
+from scipy.spatial.transform import Rotation
+from sklearn.manifold import TSNE
+
+
+def visualize_latent(
+    images: torch.Tensor,
+    z0: torch.Tensor,
+    z: torch.Tensor,
+    tra_hat: torch.Tensor,
+    rot_hat: torch.Tensor,
+    tra: torch.Tensor,
+    rot: torch.Tensor,
+    num_vis: int = 4,
+    perplexity: float = 50.0,
+) -> torch.Tensor:
+    """Visualize latent samples and the prior.
+
+    Args:
+        images: input images, shape (N, 3, H, W)
+        z0: Samples from Gaussian-modelled latent posterior, shape (N, M, L)
+        z:
+            Sampels from possibly-modified latent posterior with normalizing flows,
+            shape (N, M, L)
+        tra_hat: Predicted translation vectors, shape (N, M, 3)
+        rot_hat: Predicted rotation matrices, shape (N, M, 3, 3)
+        tra: Ground-truth translation vectors, shape (N, 3)
+        rot: Ground-truth rotation matrices, shape (N, 3, 3)
+        num_vis: How many images visualize latent samples for, must be <=N
+        perplexity: Parameter for t-SNE (recommended between 5 to 50, must be <= M)
+
+    Returns:
+        The torch tensor corresponding to the k
+    """
+    num_images, num_samples, lat_dim = z0.shape
+
+    images = images.numpy(force=True)
+
+    rvec_hat = rotmat_to_cont(rot_hat.view(-1, 3, 3)).view(
+        rot_hat.shape[:2] + (6,)
+    )  # (N, M, 6)
+    rvec = rotmat_to_cont(rot)  # (N, 6)
+
+    z0 = z0.numpy(force=True)
+    z = z.numpy(force=True)
+    zp = np.random.multivariate_normal(
+        np.zeros(lat_dim), np.eye(lat_dim), (num_images, num_samples)
+    )  # (N, M, L)
+
+    tra_hat = tra_hat.numpy(force=True)
+    rvec_hat = rvec_hat.numpy(force=True)
+    tra = tra.numpy(force=True)
+    rvec = rvec.numpy(force=True)
+    pose_hat = np.concatenate((tra_hat, rvec_hat), axis=2)  # (N, M, 9)
+    pose = np.concatenate((tra, rvec), axis=1)  # (N, 9)
+    poses = np.concatenate((pose_hat, pose[:, None, :]), axis=1)  # (N, M+1, 9)
+    tsne = TSNE(
+        n_components=2,
+        init="pca",
+        random_state=0,
+        perplexity=perplexity,
+    )
+    poses_emb = np.stack(
+        [tsne.fit_transform(poses[i]) for i in range(num_vis)]
+    )  # (num_vis, M+1, 2)
+    pose_hat_emb = poses_emb[:, :-1, :]  # (num_vis, M, 2)
+    pose_emb = poses_emb[:, -1, :]  # (num_vis, 2)
+
+    if lat_dim == 2:
+        z0_emb = z0[:num_vis]  # (N, M, 2)
+        z_emb = z[:num_vis]  # (N, M, 2)
+        zp_emb = z[:num_vis]  # (N, M, 2)
+    else:
+        zs = np.concatenate((z0, z, zp), axis=1)  # (N, 3*M, L)
+        zs_emb = np.stack(
+            [tsne.fit_transform(zs[i]) for i in range(num_vis)]
+        )  # (num_vis, 3*M, 2)
+        z0_emb = zs_emb[:, :num_samples]  # (num_vis, M, 2)
+        z_emb = zs_emb[:, num_samples : 2 * num_samples]  # (num_vis, M, 2)
+        zp_emb = zs_emb[:, 2 * num_samples : 3 * num_samples]  # (num_vis, M, 2)
+
+    fig, axs = plt.subplots(num_vis, 4, figsize=(10, 7))
+    for i in range(num_vis):
+        axs[i, 0].set_ylabel(f"image {i}")
+        axs[i, 0].imshow(np.transpose(images[i], (1, 2, 0)))
+        axs[i, 0].set_xticks([])
+        axs[i, 0].set_yticks([])
+        axs[i, 1].scatter(*zp_emb[i].T, c="blue", alpha=0.5, s=2)
+        axs[i, 1].scatter(*z0_emb[i].T, c="red", alpha=0.5, s=2)
+        axs[i, 2].scatter(*zp_emb[i].T, c="blue", alpha=0.5, s=2)
+        axs[i, 2].scatter(*z_emb[i].T, c="lime", alpha=0.5, s=2)
+        axs[i, 3].scatter(*pose_emb[i], c="magenta", s=10, marker="*")
+        axs[i, 3].scatter(*pose_hat_emb[i].T, c="lime", alpha=0.5, s=2)
+    axs[0, 0].set_title("query img")
+    axs[0, 1].set_title("Gaussian posterior")
+    axs[0, 2].set_title("After norm. flows")
+    axs[0, 3].set_title("Pose samples")
+    fig.tight_layout()
+
+    return fig
 
 
 def schedule_warmup(
@@ -45,7 +144,7 @@ def quat_to_hopf(quat: np.ndarray) -> np.ndarray:
     """
     w, x, y, z = quat.T
     psi = 2 * np.arctan2(x, w)
-    theta = 2 * np.arctan2(np.sqrt(z ** 2 + y ** 2), np.sqrt(w ** 2 + x ** 2))
+    theta = 2 * np.arctan2(np.sqrt(z**2 + y**2), np.sqrt(w**2 + x**2))
     phi = np.arctan2(z * w - x * y, y * w + x * z)
 
     # Note for the following correction use while instead of if, to support
@@ -60,7 +159,7 @@ def quat_to_hopf(quat: np.ndarray) -> np.ndarray:
         phi[phi >= np.pi] -= 2 * np.pi
 
     # Theta must be [-pi/2, pi]
-    theta -= np.pi / 2
+    # theta -= np.pi / 2  # TODO: why did we have this
 
     # Psi must be [0, 2pi) and wraps around at 4*pi, so this correction changes the
     # the half-sphere
@@ -109,6 +208,18 @@ def cont_to_rotmat(rot: torch.Tensor) -> torch.Tensor:
     return torch.cat((b1.unsqueeze(2), b2.unsqueeze(2), b3.unsqueeze(2)), dim=2)
 
 
+def rotmat_to_cont(rotmat: torch.Tensor) -> torch.Tensor:
+    """Convert rotation matrix to 6D continuous rotation parameterization.
+
+    Args:
+        rotmat: rotation matrix, shape (N, 3, 3)
+
+    Returns:
+        continuous 6D rotation parameterization, shape (N, 6)
+    """
+    return torch.permute(rotmat[:, :, :2], (0, 2, 1)).flatten(start_dim=1)  # (N, 6)
+
+
 def rotmat_to_quat(rot: np.ndarray) -> np.ndarray:
     """Convert rotation matrices to quaternions.
 
@@ -135,7 +246,7 @@ def quat_to_rotmat(
         rotation matrices, shape (N, 3, 3)
     """
     qw, qx, qy, qz = quat.T
-    qw2, qx2, qy2, qz2 = qw ** 2, qx ** 2, qy ** 2, qz ** 2
+    qw2, qx2, qy2, qz2 = qw**2, qx**2, qy**2, qz**2
     qwx, qwy, qwz = qw * qx, qw * qy, qw * qz
     qxy, qxz, qyz = qx * qy, qx * qz, qy * qz
     vstack = torch.vstack if type(quat) is torch.Tensor else np.vstack

@@ -122,7 +122,10 @@ def chordal_to_geodesic(dist: torch.Tensor, deg: bool = False) -> torch.Tensor:
     Returns:
         geodesic distance, shape (N,)
     """
-    geo_dist = 2 * torch.asin(dist / (8 ** 0.5))
+    sin = dist / (8 ** 0.5)
+    sin = torch.where(sin < -1, -torch.ones_like(sin), sin)
+    sin = torch.where(sin > 1, torch.ones_like(sin), sin)
+    geo_dist = 2 * torch.asin(sin)
     if deg:
         geo_dist = geo_dist / math.pi * 180
     return geo_dist

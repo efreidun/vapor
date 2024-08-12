@@ -216,6 +216,34 @@ def write_sample_transforms(
         json.dump(ingp_params, f, indent=4)
 
 
+def read_lens_poses(
+    poses_path: Path,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Read LENs poses of a sequence from text file.
+
+    Every row of the text file is one pose containing
+    sequence id qw qx qy qz tx ty tz
+
+    Args:
+        poses_path: path to the sequence poses text file
+
+    Returns:
+        image IDs, shape (N,)
+        image translation vectors, shape (N, 3)
+        image rotation matrices, shape (N, 3, 3)
+    """
+    with open(poses_path) as f:
+        content = f.readlines()
+    parsed_poses = np.array(
+        [[float(entry) for entry in line.strip().split(" ")] for line in content],
+        dtype=np.float32,
+    )
+    img_ids = parsed_poses[:, 0].astype(int)
+    tvecs = parsed_poses[:, 5:]
+    rotmats = quat_to_rotmat(parsed_poses[:, 1:5])
+    return img_ids, tvecs, rotmats
+
+
 def read_poses(
     poses_path: Path,
     dataset: str = "AmbiguousReloc",
@@ -342,6 +370,8 @@ def compute_scene_dims(
         z = distance * sin
         r = distance * cos
         positions = np.array([[-r, -r, z - 0.1], [r, r, z + 0.1]])
+    elif dataset == "Synthetic":
+        positions = np.array([[0, 0, 0], [48.95, 0, 0]])
     else:
         raise ValueError("Invalid dataset name.")
 

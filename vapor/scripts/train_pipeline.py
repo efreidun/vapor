@@ -45,7 +45,7 @@ def parse_arguments() -> dict:
     parser.add_argument("--sequence", type=str)
     parser.add_argument("--load_encoder", type=str, default=None)
     parser.add_argument("--load_posemap", type=str, default=None)
-    parser.add_argument("--epochs", type=int, default=2000)
+    parser.add_argument("--epochs", type=int, default=500)
     parser.add_argument("--lr", type=float, default=1e-4)
     parser.add_argument("--scheduler_gamma", type=float, default=0.8)
     parser.add_argument("--scheduler_step", type=int, default=50)
@@ -54,7 +54,7 @@ def parse_arguments() -> dict:
     parser.add_argument("--batch_size", type=int, default=4)
     parser.add_argument("--half_image", action="store_true")
     parser.add_argument("--image_size", type=int, default=224)
-    parser.add_argument("--image_mode", type=str, default="ceiling_train")
+    parser.add_argument("--image_mode", type=str, default="posenet")
     parser.add_argument("--image_crop", type=float, default=None)
     parser.add_argument("--gauss_kernel", type=int, default=3)
     parser.add_argument("--gauss_sigma", type=float, nargs="*", default=(0.05, 5.0))
@@ -64,10 +64,10 @@ def parse_arguments() -> dict:
     parser.add_argument("--jitter_hue", type=float, default=0.5)
     parser.add_argument("--latent_dim", type=int, default=16)
     parser.add_argument("--backbone", type=str, default="resnet18")
-    parser.add_argument("--map_depth", type=int, default=9)
+    parser.add_argument("--map_depth", type=int, default=3)
     parser.add_argument("--map_breadth", type=int, default=128)
     parser.add_argument("--num_samples", type=int, default=1000)
-    parser.add_argument("--top_percent", type=float, default=0.05)
+    parser.add_argument("--top_percent", type=float, default=0.2)
     parser.add_argument("--tra_weight", type=float, default=5)
     parser.add_argument("--rot_weight", type=float, default=2)
     parser.add_argument("--wta_weight", type=float, default=1)
@@ -87,6 +87,7 @@ def parse_arguments() -> dict:
 def main(config: dict) -> None:
     recall_thresholds = [[0.1, 10.0], [0.2, 15.0], [0.3, 20.0], [1.0, 60.0]]
     base_path = Path.home() / "code/vapor"
+    config["recall_min_samples"] = 50 if config["dataset"] == "Rig" else 100
     wandb.init(
         project="vapor",
         config=config,
@@ -124,6 +125,9 @@ def main(config: dict) -> None:
         "jitter_contrast": cfg.jitter_contrast,
         "jitter_saturation": cfg.jitter_saturation,
         "jitter_hue": cfg.jitter_hue,
+        "tra_gauss_noise": None,
+        "scene_dims": scene_dims,
+        "lens": cfg.lens,
     }
     valid_dataset_cfg = {
         "image_size": cfg.image_size,
@@ -135,6 +139,9 @@ def main(config: dict) -> None:
         "jitter_contrast": None,
         "jitter_saturation": None,
         "jitter_hue": None,
+        "tra_gauss_noise": None,
+        "scene_dims": None,
+        "lens": False,
     }
     if cfg.dataset in ("AmbiguousReloc", "SketchUpCircular"):
         dataset_cfg["half_image"] = cfg.half_image

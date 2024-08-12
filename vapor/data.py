@@ -4,107 +4,66 @@ import os
 from pathlib import Path
 from typing import Optional, Tuple, Union
 
-from PIL import Image
 import numpy as np
 import torch
+from PIL import Image
 from torch.utils.data import Dataset
 from torchvision.datasets.folder import default_loader
 from torchvision.transforms import (
-    Compose,
-    ToTensor,
-    Resize,
-    GaussianBlur,
     CenterCrop,
     ColorJitter,
+    Compose,
+    GaussianBlur,
+    Normalize,
     RandomCrop,
+    Resize,
+    ToTensor,
 )
 from tqdm import tqdm
 
-from vapor.read_write import read_poses, read_tfmat
+from vapor.read_write import read_lens_poses, read_poses, read_tfmat
 
 
-class Rig(Dataset):
-    """Dataset class for custom rig dataset."""
+class Synthetic(Dataset):
+    """Dataset class for custom synthetic dataset."""
 
     def __init__(
         self,
         root_path: Path,
-        image_size: int,
-        mode: str = "resize",
-        half_image: bool = False,
-        crop: Optional[float] = None,
-        gauss_kernel: Optional[int] = None,
-        gauss_sigma: Optional[Union[float, Tuple[float, float]]] = None,
-        jitter_brightness: Optional[float] = None,
-        jitter_contrast: Optional[float] = None,
-        jitter_saturation: Optional[float] = None,
-        jitter_hue: Optional[float] = None,
+        split: str,
     ) -> None:
         """Construct the ambiguous relocalisation dataset class.
 
         Args:
             root_path: path of the root directory of the data split
-            image_size: image size (images are made square)
-            mode: how image is made smaller,
-                options: "resize", "random_crop", "vertical_crop", "center_crop"
-            half_image: if True, only lower half of the images is used
-            crop: what ratio of original height and width is cropped
-            gauss_kernel: size of Gaussian blur kernel
-            gauss_sigma: [min and max of] std dev for creating Gaussian blur kernel
-            jitter_brightness: brightness jitter
-            jitter_contrast: contrast jitter
-            jitter_saturation: saturation jitter
-            jitter_hue: hue jitter
+            split: "train" or "valid"
         """
-        print("Preparing dataset...")
-        seq_paths = [root_path / seq for seq in sorted(next(os.walk(root_path))[1])]
-        poses_paths = [seq_path / "poses.txt" for seq_path in seq_paths]
+        self._colors = ToTensor()(Image.open(root_path / "colors.png"))[
+            :3
+        ]  # (3, 224, 5120)
+        self._colors = Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])(
+            self._colors
+        )  # (3, 224, 5120)
 
-        seq_ids = []
-        img_ids = []
-        tvecs = []
-        rotmats = []
-        for poses_path in poses_paths:
-            seq_id, img_id, tvec, rotmat = read_poses(poses_path, "Rig")
-            seq_ids.append(seq_id)
-            img_ids.append(img_id)
-            tvecs.append(tvec)
-            rotmats.append(rotmat)
-        seq_ids = np.concatenate(seq_ids)
-        img_ids = np.concatenate(img_ids)
-        tvecs = np.concatenate(tvecs)
-        rotmats = np.concatenate(rotmats)
-        self._img_paths = [
-            root_path / f"{seq_id}" / "images" / f"{img_id:06}.jpg"
-            for seq_id, img_id in zip(seq_ids, img_ids)
-        ]
-
+        us = np.arange(0, 5120 - 224, 10)
+        if split == "train":
+            pass
+        elif split == "valid":
+            us = us + 5
+        else:
+            raise ValueError("Invalid split")
+        self._us = torch.from_numpy(us)
+        tras = np.concatenate(
+            (us[:, None] / 100, np.zeros((len(us), 2))), axis=1
+        )  # (N, 3)
+        rots = np.tile(np.eye(3)[None, ...], (len(us), 1, 1))  # (N, 3, 3)
         self._poses = torch.from_numpy(
-            np.concatenate((tvecs, rotmats.reshape(-1, 9)), axis=1)
-        )
-        self._names = [
-            str(img_path.relative_to(root_path)) for img_path in self._img_paths
-        ]
-
-        self._transform = create_transforms(
-            # *self._images.shape[2:],
-            None,
-            None,
-            True,
-            image_size,
-            mode,
-            crop,
-            gauss_kernel,
-            gauss_sigma,
-            jitter_brightness,
-            jitter_contrast,
-            jitter_saturation,
-            jitter_hue,
-        )
+            np.concatenate((tras, rots.reshape(-1, 9)), axis=1)
+        ).float()
 
     def __len__(self) -> int:
         """Get total number of samples."""
-        return len(self._img_paths)
+        return len(self._poses)
 
     def __getitem__(self, index: int) -> Tuple[torch.Tensor, torch.Tensor, str]:
         """Get sample by index.
@@ -119,9 +78,9 @@ class Rig(Dataset):
             image name
         """
         return (
-            self._transform(default_loader(self._img_paths[index])),
+            self._colors[:, :, self._us[index] : self._us[index] + 224],
             self._poses[index],
-            self._names[index],
+            str(self._us[index]),
         )
 
 
@@ -253,6 +212,110 @@ class SketchUpCircular(Dataset):
         )
 
 
+class Rig(Dataset):
+    """Dataset class for custom rig dataset."""
+
+    def __init__(
+        self,
+        root_path: Path,
+        image_size: int,
+        mode: str = "resize",
+        half_image: bool = False,
+        crop: Optional[float] = None,
+        gauss_kernel: Optional[int] = None,
+        gauss_sigma: Optional[Union[float, Tuple[float, float]]] = None,
+        jitter_brightness: Optional[float] = None,
+        jitter_contrast: Optional[float] = None,
+        jitter_saturation: Optional[float] = None,
+        jitter_hue: Optional[float] = None,
+        tra_gauss_noise: Optional[float] = None,
+        scene_dims: Optional[np.ndarray] = None,
+    ) -> None:
+        """Construct the ambiguous relocalisation dataset class.
+
+        Args:
+            root_path: path of the root directory of the data split
+            image_size: image size (images are made square)
+            mode: how image is made smaller,
+                options: "resize", "random_crop", "vertical_crop", "center_crop"
+            half_image: if True, only lower half of the images is used
+            crop: what ratio of original height and width is cropped
+            gauss_kernel: size of Gaussian blur kernel
+            gauss_sigma: [min and max of] std dev for creating Gaussian blur kernel
+            jitter_brightness: brightness jitter
+            jitter_contrast: contrast jitter
+            jitter_saturation: saturation jitter
+            jitter_hue: hue jitter
+        """
+        print("Preparing dataset...")
+        seq_paths = [root_path / seq for seq in sorted(next(os.walk(root_path))[1])]
+        poses_paths = [seq_path / "poses.txt" for seq_path in seq_paths]
+
+        seq_ids = []
+        img_ids = []
+        tvecs = []
+        rotmats = []
+        for poses_path in poses_paths:
+            seq_id, img_id, tvec, rotmat = read_poses(poses_path, "Rig")
+            seq_ids.append(seq_id)
+            img_ids.append(img_id)
+            tvecs.append(tvec)
+            rotmats.append(rotmat)
+        seq_ids = np.concatenate(seq_ids)
+        img_ids = np.concatenate(img_ids)
+        tvecs = np.concatenate(tvecs)
+        rotmats = np.concatenate(rotmats)
+        self._img_paths = [
+            root_path / f"{seq_id}" / "images" / f"{img_id:06}.jpg"
+            for seq_id, img_id in zip(seq_ids, img_ids)
+        ]
+
+        self._poses = torch.from_numpy(
+            np.concatenate((tvecs, rotmats.reshape(-1, 9)), axis=1)
+        )
+        self._names = [
+            str(img_path.relative_to(root_path)) for img_path in self._img_paths
+        ]
+
+        self._transform = create_transforms(
+            # *self._images.shape[2:],
+            None,
+            None,
+            True,
+            image_size,
+            mode,
+            crop,
+            gauss_kernel,
+            gauss_sigma,
+            jitter_brightness,
+            jitter_contrast,
+            jitter_saturation,
+            jitter_hue,
+        )
+
+    def __len__(self) -> int:
+        """Get total number of samples."""
+        return len(self._img_paths)
+
+    def __getitem__(self, index: int) -> Tuple[torch.Tensor, torch.Tensor, str]:
+        """Get sample by index.
+
+        Args:
+            sample index
+
+        Returns:
+            image tensor, shape (3, H, W),
+            image pose, shape (12,)
+                formatted as (tx, ty, tz, r11, r12, r13, r21, r22, r23, r31, r32, r33),
+            image name
+        """
+        return (
+            self._transform(default_loader(self._img_paths[index])),
+            self._poses[index],
+            self._names[index],
+        )
+
+
 class CambridgeLandmarks(Dataset):
     """Dataset class for the Cambridge Landmarks dataset."""
 
@@ -294,7 +357,7 @@ class CambridgeLandmarks(Dataset):
         ]
 
         self._poses = torch.from_numpy(
-            np.concatenate((tvecs, rotmats.reshape(-1, 9)), axis=1)
+            np.concatenate((tvecs, rotmats.reshape(-1, 9)), axis=1).astype(np.float32)
         )
 
         self._names = [
@@ -454,6 +517,9 @@ class AmbiguousReloc(Dataset):
         jitter_contrast: Optional[float] = None,
         jitter_saturation: Optional[float] = None,
         jitter_hue: Optional[float] = None,
+        tra_gauss_noise: Optional[float] = None,
+        scene_dims: Optional[np.ndarray] = None,
+        lens: bool = False,
     ) -> None:
         """Construct the ambiguous relocalisation dataset class.
 
@@ -472,6 +538,10 @@ class AmbiguousReloc(Dataset):
             jitter_hue: hue jitter
         """
         print("Preparing dataset...")
+        self._tra_gauss_noise = tra_gauss_noise
+        if scene_dims is not None:
+            self._tra_scene_scale = scene_dims[1] - scene_dims[0]
+            self._tra_scene_scale /= torch.max(self._tra_scene_scale)
         seq_paths = [root_path / seq for seq in sorted(next(os.walk(root_path))[1])]
         poses_paths = [
             seq_path / f"poses_{seq_path.stem}.txt" for seq_path in seq_paths
@@ -502,18 +572,47 @@ class AmbiguousReloc(Dataset):
         self._poses = torch.from_numpy(
             np.concatenate((tvecs, rotmats.reshape(-1, 9)), axis=1)
         )
-        self._images = torch.cat(
-            [
-                ToTensor()(Image.open(img_path))[None, ...]
-                for img_path in tqdm(img_paths)
-            ]
-        )
-        if half_image:
-            self._images = self._images[:, :, self._images.shape[2] // 2 :]
+        # self._images = torch.cat(
+        #     [
+        #         ToTensor()(Image.open(img_path))[None, ...]
+        #         for img_path in tqdm(img_paths)
+        #     ]
+        # )
+        self._img_paths = img_paths
         self._names = [str(img_path.relative_to(root_path)) for img_path in img_paths]
 
+        if lens:
+            lens_path = root_path.parent / "lens"
+            img_ids, tvecs, rotmats = read_lens_poses(lens_path / "poses.txt")
+            lens_img_paths = [
+                lens_path / f"renders/{str(img_id).zfill(5)}.png" for img_id in img_ids
+            ]
+            lens_poses = torch.from_numpy(
+                np.concatenate((tvecs, rotmats.reshape(-1, 9)), axis=1)
+            )
+            # lens_images = torch.cat(
+            #     [
+            #         ToTensor()(Image.open(img_path))[None, ...]
+            #         for img_path in tqdm(img_paths)
+            #     ]
+            # )[:, :3, :, :]
+            lens_names = [
+                str(img_path.relative_to(lens_path)) for img_path in lens_img_paths
+            ]
+            self._poses = torch.cat((self._poses, lens_poses))
+            self._img_paths.extend(lens_img_paths)
+            # self._images = [img for img in self._images] + [img for img in lens_images]
+            self._names.extend(lens_names)
+
+        if half_image:
+            if lens:
+                raise ValueError
+            self._images = self._images[:, :, self._images.shape[2] // 2 :]
+
         self._transform = create_transforms(
-            *self._images.shape[2:],
+            # *self._images[0].shape[1:],
+            100,
+            100,
             False,
             image_size,
             mode,
@@ -528,7 +627,7 @@ class AmbiguousReloc(Dataset):
 
     def __len__(self) -> int:
         """Get total number of samples."""
-        return len(self._images)
+        return len(self._img_paths)
 
     def __getitem__(self, index: int) -> Tuple[torch.Tensor, torch.Tensor, str]:
         """Get sample by index.
@@ -542,9 +641,13 @@ class AmbiguousReloc(Dataset):
                 formatted as (tx, ty, tz, r11, r12, r13, r21, r22, r23, r31, r32, r33),
             image name
         """
+        pose = self._poses[index]
+        if self._tra_gauss_noise is not None:
+            pose[:3] += torch.randn(3) * self._tra_gauss_noise * self._tra_scene_scale
+        image = ToTensor()(Image.open(self._img_paths[index]))[:3]
         return (
-            self._transform(self._images[index]),
-            self._poses[index],
+            self._transform(image),
+            pose,
             self._names[index],
         )
 
@@ -588,7 +691,25 @@ def create_transforms(
             + " then random cropped to 224x224"
         )
         transforms.extend([Resize(256, antialias=True), RandomCrop(224)])
-
+    elif mode == "posenet_plusplus":
+        print(
+            "Following PoseNet++ images are resized to smallest edge 224,"
+            + " then center cropped to 224x224"
+        )
+        transforms.extend([Resize(254, antialias=True), CenterCrop(224)])
+    elif mode == "posenet_minusminus":
+        print(
+            "Following PoseNet-- images are resized to smallest edge 224,"
+            + "center cropped to 224x224,"
+            + " then resized to 16x16"
+        )
+        transforms.extend(
+            [
+                Resize(254, antialias=True),
+                RandomCrop(224),
+                Resize(16, antialias=True),
+            ]
+        )
     else:
         if crop is not None:
             print(f"Images are cropped by {crop} of its height and width")
@@ -606,10 +727,10 @@ def create_transforms(
             print(f"Images are random cropped to {image_size}x{image_size}")
             transforms.append(RandomCrop(image_size))
         elif mode == "ceiling_train":
-            print(f"Images are cropped for Ceiling training.")
+            print("Images are cropped for Ceiling training.")
             transforms.extend([CenterCrop(256), RandomCrop(224)])
         elif mode == "ceiling_test":
-            print(f"Images are cropped for Ceiling test.")
+            print("Images are cropped for Ceiling test.")
             transforms.extend([CenterCrop(224)])
         else:
             raise ValueError("Invalid image resizing mode.")
@@ -639,4 +760,6 @@ def create_transforms(
                 hue=jitter_hue,
             )
         )
+    print("Images are normalized according to ImageNet")
+    transforms.append(Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]))
     return Compose(transforms)
